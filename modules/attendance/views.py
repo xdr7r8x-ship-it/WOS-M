@@ -14,7 +14,6 @@ from views.base import BaseView, PageInfo
 from views.buttons import ActionButton
 from views.selects import AttendanceStatusSelect
 
-
 class AttendanceView(BaseView):
     """Attendance management view."""
     
@@ -74,7 +73,6 @@ class AttendanceView(BaseView):
             row=1
         ))
 
-
 async def attendance_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for attendance."""
     guard = PermissionGuard(bot)
@@ -94,7 +92,6 @@ async def attendance_callback(bot: WOSMBot, interaction: discord.Interaction):
         action="view_attendance",
         category=AuditCategory.ATTENDANCE
     )
-
 
 async def record_attendance_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for recording attendance."""
@@ -117,7 +114,6 @@ async def record_attendance_callback(bot: WOSMBot, interaction: discord.Interact
         )
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
-
 
 async def attendance_list_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for attendance list."""
@@ -146,7 +142,22 @@ async def attendance_list_callback(bot: WOSMBot, interaction: discord.Interactio
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+async def att_record_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for att_record."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def att_list_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for att_list."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def att_report_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for att_report."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def att_export_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for att_export."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def att_history_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for att_history."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

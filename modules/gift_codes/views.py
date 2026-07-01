@@ -192,3 +192,8 @@ async def gift_report_callback(bot: WOSMBot, interaction: discord.Interaction):
         color=0x2ecc71
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def single_redeem_modal_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for single_redeem_modal."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

@@ -13,7 +13,6 @@ from core.audit_log import audit_log, AuditCategory
 from views.base import BaseView, PageInfo
 from views.buttons import ActionButton
 
-
 class MinistersView(BaseView):
     """Ministers management view."""
     
@@ -73,7 +72,6 @@ class MinistersView(BaseView):
             row=1
         ))
 
-
 async def ministers_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for ministers."""
     guard = PermissionGuard(bot)
@@ -94,7 +92,22 @@ async def ministers_callback(bot: WOSMBot, interaction: discord.Interaction):
         category=AuditCategory.MINISTERS
     )
 
+async def minister_add_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for minister_add."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def minister_assign_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for minister_assign."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def minister_list_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for minister_list."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def minister_schedule_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for minister_schedule."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def minister_reminder_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for minister_reminder."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

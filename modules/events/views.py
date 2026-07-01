@@ -16,7 +16,6 @@ from views.buttons import ActionButton
 from views.modals import EventModal
 from views.selects import EventTypeSelect
 
-
 class EventsView(BaseView):
     """Events management view."""
     
@@ -68,7 +67,6 @@ class EventsView(BaseView):
             row=1
         ))
 
-
 async def events_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for events."""
     guard = PermissionGuard(bot)
@@ -88,7 +86,6 @@ async def events_callback(bot: WOSMBot, interaction: discord.Interaction):
         action="view_events",
         category=AuditCategory.EVENTS
     )
-
 
 async def create_event_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for creating event."""
@@ -126,7 +123,6 @@ async def create_event_callback(bot: WOSMBot, interaction: discord.Interaction):
     except Exception as e:
         await interaction.followup.send(f"❌ {i18n.get('messages.error')}: {str(e)}", ephemeral=True)
 
-
 async def list_events_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for listing events."""
     rows = await db.fetchall("SELECT * FROM events ORDER BY event_date DESC LIMIT 50")
@@ -149,6 +145,10 @@ async def list_events_callback(bot: WOSMBot, interaction: discord.Interaction):
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+async def event_edit_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for editing an event."""
+    await interaction.response.send_message("تحرير الحدث.", ephemeral=True)
 
-
-
+async def event_delete_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for deleting an event."""
+    await interaction.response.send_message("حذف الحدث.", ephemeral=True)

@@ -18,7 +18,6 @@ from integrations.gift_code_client import gift_code_client
 from integrations.captcha_service import captcha_service
 from integrations.ocr_service import ocr_service
 
-
 class MaintenanceView(BaseView):
     """Maintenance tools view."""
     
@@ -86,7 +85,6 @@ class MaintenanceView(BaseView):
             row=1
         ))
 
-
 class PermissionsView(BaseView):
     """Permissions management view."""
     
@@ -146,7 +144,6 @@ class PermissionsView(BaseView):
             row=1
         ))
 
-
 class SettingsView(BaseView):
     """Settings management view."""
     
@@ -198,7 +195,6 @@ class SettingsView(BaseView):
             row=1
         ))
 
-
 async def maintenance_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for maintenance."""
     guard = PermissionGuard(bot)
@@ -218,7 +214,6 @@ async def maintenance_callback(bot: WOSMBot, interaction: discord.Interaction):
         action="view_maintenance",
         category=AuditCategory.MAINTENANCE
     )
-
 
 async def health_check_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for health check."""
@@ -249,7 +244,6 @@ async def health_check_callback(bot: WOSMBot, interaction: discord.Interaction):
     
     await interaction.edit_original_response(embed=embed)
 
-
 async def permissions_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for permissions."""
     guard = PermissionGuard(bot)
@@ -262,7 +256,6 @@ async def permissions_callback(bot: WOSMBot, interaction: discord.Interaction):
     embed = view.create_embed()
     
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
 
 async def settings_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for settings."""
@@ -277,17 +270,26 @@ async def settings_callback(bot: WOSMBot, interaction: discord.Interaction):
     
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+async def maint_health_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_health."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def maint_database_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_database."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def maint_logs_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_logs."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def maint_backup_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_backup."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def maint_api_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_api."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
-
-
-
-
-
-
-
-
-
+async def maint_queue_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for maint_queue."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

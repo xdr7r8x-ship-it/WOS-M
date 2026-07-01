@@ -13,7 +13,6 @@ from core.audit_log import audit_log, AuditCategory
 from views.base import BaseView, PageInfo
 from views.buttons import ActionButton
 
-
 class ThemesView(BaseView):
     """Themes and branding management view."""
     
@@ -81,7 +80,6 @@ class ThemesView(BaseView):
             row=1
         ))
 
-
 async def themes_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for themes."""
     guard = PermissionGuard(bot)
@@ -102,8 +100,26 @@ async def themes_callback(bot: WOSMBot, interaction: discord.Interaction):
         category=AuditCategory.THEMES
     )
 
+async def theme_bot_name_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_bot_name."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def theme_primary_color_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_primary_color."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def theme_footer_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_footer."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def theme_signature_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_signature."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def theme_preview_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_preview."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def theme_reset_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for theme_reset."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

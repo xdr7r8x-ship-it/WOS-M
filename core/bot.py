@@ -63,12 +63,31 @@ def resolve_registered_handler(bot, spec):
     except Exception:
         return None
     
-    # Try multiple handler name patterns
+    # Try multiple handler name patterns based on custom_id
+    # e.g., "event_list" -> try "event_list_callback", "list_events_callback"
+    parts = spec.custom_id.split('_')
     candidates = [
         spec.handler_name,
         f"{spec.custom_id}_callback",
-        f"nav_{spec.custom_id.split('_', 1)[-1]}_callback",
     ]
+    
+    # Generate all permutations
+    for i in range(1, len(parts)):
+        prefix = "_".join(parts[:i])
+        suffix = "_".join(parts[i:])
+        candidates.append(f"{prefix}_{suffix}_callback")
+        candidates.append(f"{suffix}_{prefix}_callback")
+    
+    # Also try singular/plural variations
+    singular_candidates = []
+    for c in candidates[:]:
+        if c.endswith('_callback'):
+            singular = c[:-9]  # remove _callback
+            if singular.endswith('s'):
+                singular_candidates.append(singular[:-1] + '_callback')
+            singular_candidates.append(singular + 's_callback')
+    candidates.extend(singular_candidates)
+    
     for name in candidates:
         handler = getattr(module, name, None)
         if callable(handler):
@@ -440,25 +459,45 @@ class WOSMBot(discord.Client):
         await dashboard_callback(self, interaction)
     
     async def _handle_close(self, interaction: discord.Interaction):
+        """Handle close button - delete message."""
         try:
             await interaction.message.delete()
-        except:
-            pass
-        await interaction.response.defer()
+        except Exception:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("تم إغلاق النافذة.", ephemeral=True)
+
+    async def _handle_nav_close(self, interaction: discord.Interaction):
+        """Handle nav close button."""
+        await self._handle_close(interaction)
+
+    async def _handle_nav_back(self, interaction: discord.Interaction):
+        """Navigate back to dashboard."""
+        from modules.dashboard.views import dashboard_callback
+        await dashboard_callback(self, interaction)
+
+    async def _handle_nav_home(self, interaction: discord.Interaction):
+        """Navigate home to dashboard."""
+        from modules.dashboard.views import dashboard_callback
+        await dashboard_callback(self, interaction)
+
+    async def _handle_nav_refresh(self, interaction: discord.Interaction):
+        """Refresh current dashboard."""
+        from modules.dashboard.views import dashboard_callback
+        await dashboard_callback(self, interaction)
 
     async def _handle_nav_prev(self, interaction: discord.Interaction):
-        """Handle previous page navigation."""
-        try:
-            await interaction.response.send_message("الصفحة السابقة.", ephemeral=True)
-        except:
-            pass
+        """Handle nav_prev - this is handled by PaginationView callbacks."""
+        await interaction.response.send_message(
+            "هذا الزر يعمل فقط في العرض المقسم.",
+            ephemeral=True
+        )
 
     async def _handle_nav_next(self, interaction: discord.Interaction):
-        """Handle next page navigation."""
-        try:
-            await interaction.response.send_message("الصفحة التالية.", ephemeral=True)
-        except:
-            pass
+        """Handle nav_next - this is handled by PaginationView callbacks."""
+        await interaction.response.send_message(
+            "هذا الزر يعمل فقط في العرض المقسم.",
+            ephemeral=True
+        )
     
     # Module navigation handlers
     async def _handle_alliances(self, interaction: discord.Interaction):

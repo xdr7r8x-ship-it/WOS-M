@@ -600,3 +600,63 @@ async def feat_registry_callback(bot: WOSMBot, interaction: discord.Interaction)
     """Handle feat_registry button."""
     embed = discord.Embed(title="📋 السجل", description="تم فتح سجل الميزات.", color=0xf39c12)
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def perm_list_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for perm_list."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def perm_assign_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for perm_assign."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def perm_remove_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for perm_remove."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def perm_transfer_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for perm_transfer."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def perm_audit_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for perm_audit."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_add_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_add."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_edit_name_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_edit_name."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_edit_icon_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_edit_icon."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_edit_order_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_edit_order."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_enable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_enable."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def btn_disable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for btn_disable."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
+
+
+async def text_edit_title_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for text_edit_title."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

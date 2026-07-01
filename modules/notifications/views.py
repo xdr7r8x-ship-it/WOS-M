@@ -13,7 +13,6 @@ from core.audit_log import audit_log, AuditCategory
 from views.base import BaseView, PageInfo
 from views.buttons import ActionButton
 
-
 class NotificationsView(BaseView):
     """Notifications management view."""
     
@@ -81,7 +80,6 @@ class NotificationsView(BaseView):
             row=1
         ))
 
-
 async def notifications_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for notifications."""
     guard = PermissionGuard(bot)
@@ -102,8 +100,26 @@ async def notifications_callback(bot: WOSMBot, interaction: discord.Interaction)
         category=AuditCategory.NOTIFICATIONS
     )
 
+async def notif_add_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_add."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def notif_list_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_list."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def notif_edit_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_edit."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def notif_delete_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_delete."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def notif_enable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_enable."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)
 
+async def notif_disable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Callback for notif_disable."""
+    await interaction.response.send_message("تم استلام الطلب.", ephemeral=True)

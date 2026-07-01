@@ -259,3 +259,67 @@ def test_base_view_navigation_ids_are_registered():
     assert "nav_home" in INTERACTION_REGISTRY, "nav_home must be in registry"
     assert "nav_prev" in INTERACTION_REGISTRY, "nav_prev must be in registry"
     assert "nav_next" in INTERACTION_REGISTRY, "nav_next must be in registry"
+
+
+def test_every_registry_handler_resolves_to_callable():
+    """Registry custom_ids must resolve via bot handlers or module callbacks."""
+    import re
+    from pathlib import Path
+    from core.bot import resolve_registered_handler, WOSMBot
+    from core.interaction_registry import INTERACTION_REGISTRY
+
+    bot = WOSMBot()
+    
+    # Collect all module callbacks
+    all_callbacks = set()
+    for views_file in Path("modules").rglob("views.py"):
+        with open(views_file) as f:
+            content = f.read()
+        matches = re.findall(r'async def (\w+_callback)', content)
+        all_callbacks.update(matches)
+
+    missing = []
+
+    for custom_id, spec in INTERACTION_REGISTRY.items():
+        handler = resolve_registered_handler(bot, spec)
+        
+        # Check if callback exists in modules
+        callback_name = f"{custom_id}_callback"
+        if callback_name in all_callbacks:
+            continue
+        
+        if handler is None:
+            missing.append(custom_id)
+
+    assert not missing, f"Missing handlers: {missing}"
+
+
+def test_pagination_buttons_have_real_callbacks():
+    """Pagination buttons must have real callbacks, not dummy handlers."""
+    from views.base import PaginationView, PageInfo
+
+    view = PaginationView(
+        user_id=123,
+        items=list(range(25)),
+        items_per_page=10,
+        page_info=PageInfo(title="Test", description="Test")
+    )
+
+    buttons = {item.custom_id: item for item in view.children if hasattr(item, "custom_id")}
+
+    assert "nav_prev" in buttons
+    assert "nav_next" in buttons
+    assert buttons["nav_prev"].callback is not None
+    assert buttons["nav_next"].callback is not None
+
+
+def test_nav_prev_next_are_not_dummy_handlers():
+    """Bot handlers must not send dummy pagination messages."""
+    from pathlib import Path
+
+    content = Path("core/bot.py").read_text()
+
+    assert 'send_message("الصفحة السابقة."' not in content
+    assert 'send_message("الصفحة التالية."' not in content
+    assert 'send_message("الصفحة السابقة.",' not in content
+    assert 'send_message("الصفحة التالية.",' not in content

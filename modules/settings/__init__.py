@@ -1,0 +1,1 @@
+"""WOS-M Settings Module"""
