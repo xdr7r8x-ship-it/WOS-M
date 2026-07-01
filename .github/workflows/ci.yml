@@ -47,7 +47,7 @@ jobs:
       
       - name: Type Check
         run: |
-          pip install mypy numpy==1.26.4 -q
+          pip install 'mypy<1.8' numpy==1.26.4 -q
           python -m mypy core modules integrations views main.py
       
       - name: Run Tests
