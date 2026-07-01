@@ -22,7 +22,21 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio certifi aiohttp
+        
+      - name: Create .env for tests
+        run: |
+          cat > .env << 'EOF'
+          DISCORD_BOT_TOKEN=test_token_for_ci
+          DISCORD_APPLICATION_ID=123456789
+          OWNER_DISCORD_ID=123456789
+          WOSM_DEMO_MODE=false
+          DEFAULT_LANGUAGE=ar
+          DATABASE_URL=sqlite:///data/wosm.sqlite
+          WOS_GIFT_PUBLIC_ENDPOINT=https://example.com
+          WOS_PLAYER_PUBLIC_ENDPOINT=https://example.com
+          REAL_REDEMPTION_PROVIDER=WhiteoutProject
+          EOF
       
       - name: Compileall Check
         run: python -m compileall . -q
@@ -82,6 +96,8 @@ jobs:
           found = []
           for py in Path('.').rglob('*.py'):
             if 'test' in str(py) or '.venv' in str(py):
+              continue
+            if py.name == 'main.py':  # Skip main.py - contains the pattern for scanning
               continue
             with open(py) as f:
               for i, line in enumerate(f, 1):

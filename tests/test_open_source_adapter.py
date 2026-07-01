@@ -258,4 +258,5 @@ class TestEnvironmentConfiguration:
                             demo_mode = line.split("=", 1)[1].strip()
                             break
         
-        assert demo_mode is not None, "WOSM_DEMO_MODE must be explicitly set"
+        # DEMO_MODE is explicitly set if the line exists with any value
+        assert demo_mode is not None and demo_mode != "", "WOSM_DEMO_MODE must be explicitly set"
