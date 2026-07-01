@@ -43,6 +43,7 @@ def test_discord_runtime_qa_requires_real_secret():
     assert "|| echo" not in runtime_section, "|| echo bypass not allowed"
     assert "Runtime QA skipped" not in runtime_section, "Runtime QA skipped not allowed"
     assert "run: python scripts/discord_runtime_smoke.py" in runtime_section, "Must run smoke test"
+    assert "|| true" not in runtime_section, "|| true bypass not allowed"
 
 
 def test_runtime_smoke_does_not_accept_test_token():

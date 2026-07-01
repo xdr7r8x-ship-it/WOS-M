@@ -155,7 +155,6 @@ jobs:
   discord-runtime-qa:
     name: Discord Runtime QA Live
     runs-on: ubuntu-latest
-    if: ${{ secrets.DISCORD_BOT_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -174,7 +173,4 @@ jobs:
       - name: Run Discord runtime smoke test
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
-          OWNER_DISCORD_ID: ${{ secrets.OWNER_DISCORD_ID }}
-          TEST_GUILD_ID: ${{ secrets.TEST_GUILD_ID }}
         run: python scripts/discord_runtime_smoke.py
