@@ -64,12 +64,21 @@ class WOSMBot(discord.Client):
             "dash_owner_panel": self._handle_owner_panel,
             "dash_language": self._handle_language,
             "dash_settings": self._handle_settings,
+            # Gift codes
+            "gift_add": self._handle_gift_add,
+            "gift_redeem_single": self._handle_gift_redeem_single,
+            "gift_batch": self._handle_gift_batch,
+            "gift_redeem_alliance": self._handle_gift_redeem_alliance,
+            "gift_auto": self._handle_gift_auto,
+            "gift_report": self._handle_gift_report,
+            # Owner panel
             "owner_panel_language": self._handle_owner_language,
             "owner_panel_buttons": self._handle_owner_buttons,
             "owner_panel_texts": self._handle_owner_texts,
             "owner_panel_icons": self._handle_owner_icons,
             "owner_panel_branding": self._handle_owner_branding,
             "owner_panel_features": self._handle_owner_features,
+            # Confirmation
             "confirm_btn": self._handle_confirm,
             "cancel_btn": self._handle_cancel,
         }
@@ -125,14 +134,6 @@ class WOSMBot(discord.Client):
             """Main WOS-M command."""
             from modules.dashboard.views import dashboard_callback
             await dashboard_callback(self, interaction)
-        
-        # Add button callback
-        @self.tree.command(
-            name="test",
-            description="Test command"
-        )
-        async def test_command(interaction: discord.Interaction):
-            await interaction.response.send_message("✅ Bot is working!", ephemeral=True)
     
     async def on_interaction(self, interaction: discord.Interaction):
         """Handle all interactions."""
@@ -221,6 +222,31 @@ class WOSMBot(discord.Client):
     async def _handle_settings(self, interaction: discord.Interaction):
         from modules.maintenance.views import settings_callback
         await settings_callback(self, interaction)
+    
+    # Gift codes handlers
+    async def _handle_gift_add(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import add_gift_code_callback
+        await add_gift_code_callback(self, interaction)
+    
+    async def _handle_gift_redeem_single(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import redeem_single_code_callback
+        await redeem_single_code_callback(self, interaction)
+    
+    async def _handle_gift_batch(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import batch_redeem_callback
+        await batch_redeem_callback(self, interaction)
+    
+    async def _handle_gift_redeem_alliance(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import redeem_alliance_code_callback
+        await redeem_alliance_code_callback(self, interaction)
+    
+    async def _handle_gift_auto(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import auto_redeem_callback
+        await auto_redeem_callback(self, interaction)
+    
+    async def _handle_gift_report(self, interaction: discord.Interaction):
+        from modules.gift_codes.views import gift_report_callback
+        await gift_report_callback(self, interaction)
     
     # Owner panel handlers
     async def _handle_owner_language(self, interaction: discord.Interaction):

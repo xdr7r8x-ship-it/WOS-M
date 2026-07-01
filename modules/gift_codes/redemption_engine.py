@@ -1,12 +1,15 @@
 """
 WOS-M Gift Codes Redemption Engine
 © MANSOUR — WOS-M. All rights reserved.
+
+This module provides the core redemption engine for gift codes.
 """
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 import logging
+import re
 
-from integrations.gift_code_client import gift_code_client, GiftCodeStatus
+from integrations.gift_code_client import gift_code_client, GiftCodeStatus as APIStatus
 from integrations.captcha_service import captcha_service
 from modules.gift_codes.service import gift_code_service
 from modules.gift_codes.models import GiftCodeStatus as ModelStatus
@@ -16,12 +19,86 @@ logger = logging.getLogger(__name__)
 
 
 class RedemptionEngine:
-    """Engine for gift code redemption operations."""
+    """
+    Core engine for gift code redemption operations.
+    
+    Features:
+    - Single and batch redemption
+    - Captcha solving integration
+    - Process queue integration
+    - Progress tracking
+    - Auto retry on failure
+    """
     
     def __init__(self):
         self._captcha_cache: Dict[str, str] = {}
+        self._active_redeemers: Dict[str, asyncio.Task] = {}
+        self._auto_redeem_enabled: Dict[int, bool] = {}  # alliance_id -> enabled
     
-    async def redeem_code(self, code: str, player_id: int, player_fid: str = None) -> Dict[str, Any]:
+    def is_auto_redeem_enabled(self, alliance_id: Optional[int] = None) -> bool:
+        """Check if auto redeem is enabled for an alliance."""
+        if alliance_id is None:
+            return any(self._auto_redeem_enabled.values())
+        return self._auto_redeem_enabled.get(alliance_id, False)
+    
+    def set_auto_redeem(self, alliance_id: int, enabled: bool):
+        """Enable or disable auto redeem for an alliance."""
+        self._auto_redeem_enabled[alliance_id] = enabled
+        logger.info(f"Auto redeem {'enabled' if enabled else 'disabled'} for alliance {alliance_id}")
+    
+    async def solve_captcha_if_needed(self, code: str) -> Optional[str]:
+        """
+        Solve captcha if required for the code.
+        
+        Args:
+            code: Gift code to check
+            
+        Returns:
+            Captcha token if solved, None otherwise
+        """
+        # Check if captcha is required
+        requires_captcha = await gift_code_client.check_captcha_required(code)
+        
+        if not requires_captcha:
+            return None
+        
+        # Check cache first
+        if code in self._captcha_cache:
+            return self._captcha_cache[code]
+        
+        # Try to solve captcha
+        try:
+            # Get captcha image/data from API
+            captcha_data = await self._get_captcha_data(code)
+            
+            if captcha_data:
+                # Solve using captcha service
+                solution = await captcha_service.solve_image_captcha(captcha_data)
+                
+                if solution:
+                    token = f"captcha_{solution}_{code}"
+                    self._captcha_cache[code] = token
+                    gift_code_client.set_captcha_token(token)
+                    return token
+                    
+        except Exception as e:
+            logger.error(f"Error solving captcha for {code}: {e}")
+        
+        return None
+    
+    async def _get_captcha_data(self, code: str) -> Optional[bytes]:
+        """Get captcha image data for a code."""
+        # This would typically fetch from the game API
+        # For now, return None to skip captcha
+        return None
+    
+    async def redeem_code(
+        self,
+        code: str,
+        player_id: int,
+        player_fid: Optional[str] = None,
+        skip_validation: bool = False
+    ) -> Dict[str, Any]:
         """
         Redeem a code for a player.
         
@@ -29,12 +106,28 @@ class RedemptionEngine:
             code: Gift code
             player_id: Database player ID
             player_fid: Player FID (optional)
+            skip_validation: Skip code validation if already validated
             
         Returns:
-            Redemption result
+            Redemption result with full details
         """
+        code = code.upper().strip()
+        
+        # Validate code format
+        if not self._validate_code_format(code):
+            return {
+                "success": False,
+                "error": "invalid_format",
+                "message": "Code format is invalid"
+            }
+        
         # Get code from database
         gift_code = await gift_code_service.get_code_by_code(code)
+        
+        if not gift_code:
+            # Add code to database if not exists
+            code_id = await gift_code_service.add_code(code)
+            gift_code = await gift_code_service.get_code(code_id)
         
         if not gift_code:
             return {
@@ -43,7 +136,7 @@ class RedemptionEngine:
                 "message": "Code not found in database"
             }
         
-        # Check if already redeemed
+        # Check if already redeemed globally
         if gift_code.status == ModelStatus.REDEEMED:
             return {
                 "success": False,
@@ -75,50 +168,57 @@ class RedemptionEngine:
         # Update status to redeeming
         await gift_code_service.update_code_status(gift_code.id, ModelStatus.REDEEMING)
         
-        # Check for captcha requirement
-        captcha_token = None
-        # if self._requires_captcha(code):
-        #     captcha_token = await self._solve_captcha()
-        #     if not captcha_token:
-        #         await gift_code_service.update_code_status(gift_code.id, ModelStatus.FAILED)
-        #         return {
-        #             "success": False,
-        #             "error": "captcha_failed",
-        #             "message": "Failed to solve captcha"
-        #         }
+        # Solve captcha if needed
+        captcha_token = await self.solve_captcha_if_needed(code)
+        
+        if captcha_token is None and await gift_code_client.check_captcha_required(code):
+            await gift_code_service.update_code_status(gift_code.id, ModelStatus.PENDING)
+            return {
+                "success": False,
+                "error": "captcha_required",
+                "message": "Captcha solving is required"
+            }
         
         # Attempt redemption
         try:
-            result = await gift_code_client.redeem_code(code, player_fid)
+            result = await gift_code_client.redeem_code(code, player_fid, captcha_token)
             
-            status = GiftCodeStatus(result.get("status", "failed"))
+            status = APIStatus(result.get("status", "failed"))
             
-            if status == GiftCodeStatus.REDEEMED:
+            if status == APIStatus.REDEEMED:
                 # Success
                 await gift_code_service.update_code_status(gift_code.id, ModelStatus.REDEEMED)
                 await gift_code_service.add_redemption(
                     gift_code.id, player_id, ModelStatus.REDEEMED.value
                 )
                 
+                logger.info(f"Successfully redeemed code {code} for player {player_id}")
+                
                 return {
                     "success": True,
-                    "status": ModelStatus.REDEEMED,
-                    "rewards": result.get("rewards", [])
+                    "status": ModelStatus.REDEEMED.value,
+                    "rewards": result.get("rewards", []),
+                    "message": "Code redeemed successfully"
                 }
             
             else:
-                # Failed
-                await gift_code_service.update_code_status(gift_code.id, ModelStatus(status.value))
+                # Handle specific status
+                model_status = self._map_api_status(status)
+                
+                if status == APIStatus.ALREADY_REDEEMED:
+                    model_status = ModelStatus.ALREADY_REDEEMED
+                
+                await gift_code_service.update_code_status(gift_code.id, model_status)
                 await gift_code_service.add_redemption(
-                    gift_code.id, player_id, status.value,
+                    gift_code.id, player_id, model_status.value,
                     error_message=result.get("error")
                 )
                 
                 return {
                     "success": False,
-                    "status": ModelStatus(status.value),
-                    "error": result.get("error"),
-                    "message": f"Redemption failed: {result.get('error')}"
+                    "status": model_status.value,
+                    "error": result.get("error", status.value),
+                    "message": f"Redemption failed: {result.get('error', status.value)}"
                 }
                 
         except Exception as e:
@@ -131,11 +231,32 @@ class RedemptionEngine:
                 "message": str(e)
             }
     
+    def _validate_code_format(self, code: str) -> bool:
+        """Validate gift code format."""
+        pattern = re.compile(r'^[A-Z0-9]{6,32}$')
+        return bool(pattern.match(code))
+    
+    def _map_api_status(self, api_status: APIStatus) -> ModelStatus:
+        """Map API status to model status."""
+        mapping = {
+            APIStatus.VALID: ModelStatus.VALID,
+            APIStatus.INVALID: ModelStatus.INVALID,
+            APIStatus.EXPIRED: ModelStatus.EXPIRED,
+            APIStatus.REDEEMING: ModelStatus.REDEEMING,
+            APIStatus.REDEEMED: ModelStatus.REDEEMED,
+            APIStatus.ALREADY_REDEEMED: ModelStatus.ALREADY_REDEEMED,
+            APIStatus.FAILED: ModelStatus.FAILED,
+            APIStatus.PENDING: ModelStatus.PENDING,
+        }
+        return mapping.get(api_status, ModelStatus.FAILED)
+    
     async def batch_redeem(
         self,
         code: str,
-        alliance_id: int = None,
-        player_ids: List[int] = None
+        alliance_id: Optional[int] = None,
+        player_ids: Optional[List[int]] = None,
+        progress_callback: Optional[Callable] = None,
+        notification_channel: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Batch redeem a code for multiple players.
@@ -144,10 +265,22 @@ class RedemptionEngine:
             code: Gift code
             alliance_id: Alliance ID (if redeeming for alliance)
             player_ids: List of player IDs (if specific players)
+            progress_callback: Callback for progress updates
+            notification_channel: Discord channel for progress notifications
             
         Returns:
-            Batch result
+            Batch result with full statistics
         """
+        code = code.upper().strip()
+        
+        # Validate code format
+        if not self._validate_code_format(code):
+            return {
+                "success": False,
+                "error": "invalid_format",
+                "message": "Invalid code format"
+            }
+        
         # Create batch
         batch_id = await gift_code_service.create_batch(code, alliance_id)
         
@@ -162,8 +295,6 @@ class RedemptionEngine:
                 rows = await db.fetchall(
                     "SELECT id, fid, name FROM players WHERE is_active = 1"
                 )
-            player_ids = [row["id"] for row in rows]
-            players_info = {row["id"]: {"fid": row["fid"], "name": row["name"]} for row in rows}
         else:
             rows = await db.fetchall(
                 "SELECT id, fid, name FROM players WHERE id IN ({})".format(
@@ -171,35 +302,54 @@ class RedemptionEngine:
                 ),
                 tuple(player_ids)
             )
-            players_info = {row["id"]: {"fid": row["fid"], "name": row["name"]} for row in rows}
+        
+        player_ids = [row["id"] for row in rows]
+        players_info = {row["id"]: {"fid": row["fid"], "name": row["name"]} for row in rows}
         
         total = len(player_ids)
         await gift_code_service.update_batch(batch_id, total=total, status="processing")
         
         success_count = 0
         failure_count = 0
+        results = []
         
-        for player_id in player_ids:
+        for i, player_id in enumerate(player_ids):
             player_info = players_info.get(player_id, {})
+            player_fid = player_info.get("fid")
             
-            result = await self.redeem_code(
-                code,
-                player_id,
-                player_fid=player_info.get("fid")
-            )
-            
-            if result["success"]:
-                success_count += 1
-                status = ModelStatus.REDEEMED.value
-            else:
+            if not player_fid:
+                result = {
+                    "player_id": player_id,
+                    "player_name": player_info.get("name", "Unknown"),
+                    "success": False,
+                    "error": "no_fid",
+                    "status": ModelStatus.FAILED.value
+                }
                 failure_count += 1
-                status = ModelStatus.FAILED.value
+            else:
+                # Redeem code
+                redeem_result = await self.redeem_code(code, player_id, player_fid)
+                
+                result = {
+                    "player_id": player_id,
+                    "player_name": player_info.get("name", "Unknown"),
+                    "success": redeem_result.get("success", False),
+                    "error": redeem_result.get("error"),
+                    "status": redeem_result.get("status"),
+                    "rewards": redeem_result.get("rewards", [])
+                }
+                
+                if redeem_result.get("success"):
+                    success_count += 1
+                else:
+                    failure_count += 1
             
+            # Add batch result
             await gift_code_service.add_batch_result(
                 batch_id=batch_id,
                 player_id=player_id,
                 player_name=player_info.get("name", "Unknown"),
-                status=status,
+                status=result.get("status", ModelStatus.FAILED.value),
                 error_message=result.get("error")
             )
             
@@ -210,16 +360,25 @@ class RedemptionEngine:
                 failure=failure_count
             )
             
+            # Progress callback
+            if progress_callback:
+                await progress_callback(i + 1, total, player_info.get("name"), result)
+            
+            results.append(result)
+            
             # Rate limiting
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.3)
         
         # Mark batch as completed
+        final_status = "completed" if failure_count == 0 else ("partial" if success_count > 0 else "failed")
         await gift_code_service.update_batch(
             batch_id,
-            status="completed",
+            status=final_status,
             success=success_count,
             failure=failure_count
         )
+        
+        logger.info(f"Batch {batch_id} completed: {success_count}/{total} successful")
         
         return {
             "batch_id": batch_id,
@@ -227,7 +386,108 @@ class RedemptionEngine:
             "total": total,
             "success": success_count,
             "failure": failure_count,
-            "status": "completed"
+            "status": final_status,
+            "results": results
+        }
+    
+    async def auto_redeem_for_alliance(
+        self,
+        code: str,
+        alliance_id: int,
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Auto redeem a code for all active players in an alliance.
+        
+        Args:
+            code: Gift code
+            alliance_id: Alliance ID
+            progress_callback: Optional progress callback
+            
+        Returns:
+            Batch result
+        """
+        # Check if auto redeem is enabled
+        if not self.is_auto_redeem_enabled(alliance_id):
+            logger.warning(f"Auto redeem not enabled for alliance {alliance_id}")
+            return {
+                "success": False,
+                "error": "auto_redeem_disabled",
+                "message": "Auto redeem is not enabled for this alliance"
+            }
+        
+        return await self.batch_redeem(
+            code=code,
+            alliance_id=alliance_id,
+            progress_callback=progress_callback
+        )
+    
+    async def auto_redeem_all_alliances(
+        self,
+        code: str,
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Auto redeem a code for all alliances with auto redeem enabled.
+        
+        Args:
+            code: Gift code
+            progress_callback: Optional progress callback
+            
+        Returns:
+            Combined results for all alliances
+        """
+        all_results = []
+        total_success = 0
+        total_failure = 0
+        
+        for alliance_id, enabled in self._auto_redeem_enabled.items():
+            if enabled:
+                result = await self.auto_redeem_for_alliance(
+                    code, alliance_id, progress_callback
+                )
+                all_results.append({
+                    "alliance_id": alliance_id,
+                    **result
+                })
+                total_success += result.get("success", 0)
+                total_failure += result.get("failure", 0)
+        
+        return {
+            "code": code,
+            "alliances_count": len(all_results),
+            "total_success": total_success,
+            "total_failure": total_failure,
+            "alliance_results": all_results
+        }
+    
+    async def process_pending_codes(self) -> Dict[str, Any]:
+        """Process all pending codes for auto redemption."""
+        # Get all codes that need processing
+        rows = await db.fetchall(
+            """SELECT * FROM gift_codes 
+               WHERE status IN ('pending', 'valid') 
+               AND alliance_id IS NOT NULL"""
+        )
+        
+        processed = 0
+        success = 0
+        failure = 0
+        
+        for row in rows:
+            alliance_id = row["alliance_id"]
+            code = row["code"]
+            
+            if self.is_auto_redeem_enabled(alliance_id):
+                result = await self.auto_redeem_for_alliance(code, alliance_id)
+                processed += 1
+                success += result.get("success", 0)
+                failure += result.get("failure", 0)
+        
+        return {
+            "processed_codes": processed,
+            "total_success": success,
+            "total_failure": failure
         }
     
     async def retry_failed_redemptions(self) -> Dict[str, Any]:
@@ -255,7 +515,7 @@ class RedemptionEngine:
             for redemption in redemption_rows:
                 result = await self.redeem_code(code, redemption["player_id"])
                 
-                if result["success"]:
+                if result.get("success"):
                     succeeded += 1
                 
                 retried += 1
@@ -266,11 +526,6 @@ class RedemptionEngine:
             "retried": retried,
             "succeeded": succeeded
         }
-    
-    def _requires_captcha(self, code: str) -> bool:
-        """Check if code requires captcha solving."""
-        # This would be based on game API response
-        return False
 
 
 redemption_engine = RedemptionEngine()
