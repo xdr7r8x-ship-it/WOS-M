@@ -155,7 +155,7 @@ jobs:
   discord-runtime-qa:
     name: Discord Runtime QA
     runs-on: ubuntu-latest
-    if: ${{ secrets.DISCORD_BOT_TOKEN != '' }}
+    if: secrets.DISCORD_BOT_TOKEN != ''
     
     steps:
       - uses: actions/checkout@v4
