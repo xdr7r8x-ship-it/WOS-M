@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""
+WOS-M Security Scanner
+Scans all Python files for hardcoded secrets.
+Does NOT skip main.py - all files are scanned.
+© MANSOUR — WOS-M. All rights reserved.
+"""
+from pathlib import Path
+import re
+import sys
+
+
+SECRET_PATTERNS = [
+    r"sk_live_[A-Za-z0-9_-]{10,}",
+    r"pk_live_[A-Za-z0-9_-]{10,}",
+    r"ghp_[A-Za-z0-9]{20,}",
+    r"gho_[A-Za-z0-9]{20,}",
+    r"ghs_[A-Za-z0-9]{20,}",
+    r"ghu_[A-Za-z0-9]{20,}",
+    r"discord_[A-Za-z0-9]{20,}",
+    r"(?i)(api_key|secret_key|token|password)\s*=\s*['\"][^'\"]{16,}['\"]",
+]
+
+
+IGNORE_LINE_HINTS = [
+    "SECRET_PATTERNS",
+    "forbidden =",
+    "patterns =",
+    "example",
+    "your_",
+    "test_token_for_ci",
+    "# skip",
+    "# Skip",
+    "# Ignore",
+    "# noqa",
+    "def test_",
+    "async def test_",
+]
+
+
+def scan_file(path: Path) -> list:
+    """Scan a single file for secrets."""
+    found = []
+    
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception:
+        return found
+    
+    for line_no, line in enumerate(lines, 1):
+        if any(hint in line for hint in IGNORE_LINE_HINTS):
+            continue
+        
+        for pattern in SECRET_PATTERNS:
+            if re.search(pattern, line):
+                found.append(f"{path}:{line_no}: {line.strip()[:80]}")
+    
+    return found
+
+
+def main():
+    all_found = []
+    
+    for path in Path(".").rglob("*.py"):
+        text_path = str(path)
+        if any(skip in text_path for skip in [".venv", "venv", "__pycache__", ".pytest_cache", "node_modules"]):
+            continue
+        
+        found = scan_file(path)
+        all_found.extend(found)
+    
+    if all_found:
+        print("SECRETS FOUND:")
+        for item in all_found:
+            print(f"  {item}")
+        sys.exit(1)
+    
+    print("No hardcoded secrets found")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
