@@ -169,7 +169,9 @@ test_token_for_ci is explicitly REJECTED.
 - [x] No bypasses or fallbacks
 - [x] Discord Runtime QA requires real token
 
-**Status: GATES STRICT / READY FOR TOKEN / PROJECT CLOSED**
+**Status: GATES STRICT / TOKEN ADDED / PROJECT CLOSED**
+
+**Discord Runtime QA: READY TO RUN WITH REAL TOKEN**
 
 ---
 
