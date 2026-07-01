@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Dict, Callable
 
 from config.settings import settings
 from core.database import db
@@ -38,18 +38,22 @@ class WOSMBot(discord.Client):
         self.process_queue: Optional[ProcessQueue] = None
         self.feature_registry: Optional[FeatureRegistry] = None
         
-        self._button_callbacks = {}
-        self._select_callbacks = {}
+        self._button_callbacks: Dict[str, Callable] = {}
+        self._select_callbacks: Dict[str, Callable] = {}
+        self._dynamic_router: Dict[str, str] = {}
         
         self._setup_button_callbacks()
         self._setup_select_callbacks()
+        self._setup_dynamic_router()
     
     def _setup_button_callbacks(self):
         """Setup button interaction callbacks."""
-        self._button_callbacks = {
+        self._button_callbacks.update({
+            # Navigation
             "nav_back": self._handle_back,
             "nav_home": self._handle_home,
             "nav_close": self._handle_close,
+            # Dashboard navigation
             "dash_alliances": self._handle_alliances,
             "dash_players": self._handle_players,
             "dash_gift_codes": self._handle_gift_codes,
@@ -85,16 +89,167 @@ class WOSMBot(discord.Client):
             # Confirmation
             "confirm_btn": self._handle_confirm,
             "cancel_btn": self._handle_cancel,
-        }
+        })
     
     def _setup_select_callbacks(self):
         """Setup select menu interaction callbacks."""
-        self._select_callbacks = {
+        self._select_callbacks.update({
             "language_select": self._handle_language_select,
             "owner_panel_section_select": self._handle_owner_section_select,
             "alliance_select_enable": self._handle_alliance_select_enable,
             "alliance_select_disable": self._handle_alliance_select_disable,
-        }
+            "alliance_select": self._handle_alliance_select,
+            "player_select": self._handle_player_select,
+            "event_select": self._handle_event_select,
+            "notif_select": self._handle_notif_select,
+        })
+    
+    def _setup_dynamic_router(self):
+        """Setup dynamic routing to modules for uncategorized callbacks."""
+        # Alliance module
+        self._dynamic_router.update({
+            "alliance_add": "alliances",
+            "alliance_list": "alliances",
+            "alliance_edit": "alliances",
+            "alliance_delete": "alliances",
+            "alliance_sync_settings": "alliances",
+            "alliance_gift_settings": "alliances",
+            "alliance_redeem_modal": "alliances",
+        })
+        
+        # Player module
+        self._dynamic_router.update({
+            "player_add": "players",
+            "player_search": "players",
+            "player_list": "players",
+            "player_sync": "players",
+            "player_move": "players",
+            "player_export": "players",
+        })
+        
+        # Events module
+        self._dynamic_router.update({
+            "event_create": "events",
+            "event_list": "events",
+            "event_edit": "events",
+            "event_delete": "events",
+        })
+        
+        # Notifications module
+        self._dynamic_router.update({
+            "notif_add": "notifications",
+            "notif_list": "notifications",
+            "notif_edit": "notifications",
+            "notif_delete": "notifications",
+            "notif_enable": "notifications",
+            "notif_disable": "notifications",
+        })
+        
+        # Attendance module
+        self._dynamic_router.update({
+            "att_record": "attendance",
+            "att_list": "attendance",
+            "att_history": "attendance",
+            "att_report": "attendance",
+            "att_export": "attendance",
+        })
+        
+        # Bear tracking module
+        self._dynamic_router.update({
+            "bear_add": "bear_tracking",
+            "bear_damage": "bear_tracking",
+            "bear_leaderboard": "bear_tracking",
+            "bear_report": "bear_tracking",
+            "bear_ocr": "bear_tracking",
+            "bear_archive": "bear_tracking",
+        })
+        
+        # Ministers module
+        self._dynamic_router.update({
+            "minister_add": "ministers",
+            "minister_list": "ministers",
+            "minister_assign": "ministers",
+            "minister_schedule": "ministers",
+            "minister_reminder": "ministers",
+        })
+        
+        # Maintenance module
+        self._dynamic_router.update({
+            "maint_health": "maintenance",
+            "maint_database": "maintenance",
+            "maint_logs": "maintenance",
+            "maint_queue": "maintenance",
+            "maint_backup": "maintenance",
+            "maint_api": "maintenance",
+            "perm_list": "maintenance",
+            "perm_assign": "maintenance",
+            "perm_remove": "maintenance",
+            "perm_transfer": "maintenance",
+            "perm_audit": "maintenance",
+            "settings_general": "maintenance",
+            "settings_api": "maintenance",
+            "settings_save": "maintenance",
+            "settings_reset": "maintenance",
+        })
+        
+        # Themes module
+        self._dynamic_router.update({
+            "theme_bot_name": "themes",
+            "theme_primary_color": "themes",
+            "theme_footer": "themes",
+            "theme_signature": "themes",
+            "theme_preview": "themes",
+            "theme_reset": "themes",
+        })
+        
+        # Owner panel module
+        self._dynamic_router.update({
+            "brand_name": "owner_panel",
+            "brand_colors": "owner_panel",
+            "brand_save": "owner_panel",
+            "brand_reset": "owner_panel",
+            "btn_add": "owner_panel",
+            "btn_edit_name": "owner_panel",
+            "btn_edit_icon": "owner_panel",
+            "btn_edit_order": "owner_panel",
+            "btn_enable": "owner_panel",
+            "btn_disable": "owner_panel",
+            "feat_add": "owner_panel",
+            "feat_edit": "owner_panel",
+            "feat_enable": "owner_panel",
+            "feat_disable": "owner_panel",
+            "feat_link": "owner_panel",
+            "feat_registry": "owner_panel",
+            "icon_button": "owner_panel",
+            "icon_section": "owner_panel",
+            "icon_status": "owner_panel",
+            "text_edit_title": "owner_panel",
+            "text_edit_desc": "owner_panel",
+            "text_edit_msg": "owner_panel",
+            "text_reset": "owner_panel",
+            "single_redeem_modal": "gift_codes",
+        })
+    
+    async def _route_to_module(self, interaction: discord.Interaction, module_name: str, action: str):
+        """Route interaction to module handler."""
+        try:
+            module = __import__(f"modules.{module_name}.views", fromlist=[""])
+            handler_name = f"{action}_callback"
+            if hasattr(module, handler_name):
+                handler = getattr(module, handler_name)
+                await handler(self, interaction)
+            else:
+                logger.warning(f"No handler {handler_name} in {module_name}")
+                await interaction.response.send_message(
+                    "⚠️ هذه الميزة قيد التطوير.",
+                    ephemeral=True
+                )
+        except Exception as e:
+            logger.error(f"Error routing to {module_name}.{action}: {e}", exc_info=True)
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء تنفيذ العملية. تم تسجيل التفاصيل.",
+                ephemeral=True
+            )
     
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
@@ -128,10 +283,11 @@ class WOSMBot(discord.Client):
         logger.info("Commands synced")
         
         logger.info(f"WOS-M is ready! Owner: {self.owner_name} ({self.owner_discord})")
+        logger.info(f"Registered callbacks: {len(self._button_callbacks)} buttons, {len(self._select_callbacks)} selects")
+        logger.info(f"Dynamic routes: {len(self._dynamic_router)}")
     
     async def _register_commands(self):
         """Register slash commands."""
-        # Clear existing commands
         self.tree.clear_commands(guild=None)
         
         @self.tree.command(
@@ -159,22 +315,38 @@ class WOSMBot(discord.Client):
                     if key in custom_id:
                         await callback(interaction)
                         break
+            
+            # Handle dynamic routing
+            elif custom_id in self._dynamic_router:
+                module_name = self._dynamic_router[custom_id]
+                await self._route_to_module(interaction, module_name, custom_id)
+            
+            else:
+                logger.warning(f"Unhandled custom_id: {custom_id}")
+                try:
+                    await interaction.response.send_message(
+                        "⚠️ هذه الميزة غير مفعّلة.",
+                        ephemeral=True
+                    )
+                except:
+                    pass
     
-    # Button handlers
+    # Navigation handlers
     async def _handle_back(self, interaction: discord.Interaction):
-        """Handle back button."""
         await interaction.response.defer()
     
     async def _handle_home(self, interaction: discord.Interaction):
-        """Handle home button."""
         from modules.dashboard.views import dashboard_callback
         await dashboard_callback(self, interaction)
     
     async def _handle_close(self, interaction: discord.Interaction):
-        """Handle close button."""
-        await interaction.message.delete()
+        try:
+            await interaction.message.delete()
+        except:
+            pass
         await interaction.response.defer()
     
+    # Module navigation handlers
     async def _handle_alliances(self, interaction: discord.Interaction):
         from modules.alliances.views import alliances_callback
         await alliances_callback(self, interaction)
@@ -228,10 +400,10 @@ class WOSMBot(discord.Client):
         await language_callback(self, interaction)
     
     async def _handle_settings(self, interaction: discord.Interaction):
-        from modules.maintenance.views import settings_callback
+        from modules.dashboard.views import settings_callback
         await settings_callback(self, interaction)
     
-    # Gift codes handlers
+    # Gift code handlers
     async def _handle_gift_add(self, interaction: discord.Interaction):
         from modules.gift_codes.views import add_gift_code_callback
         await add_gift_code_callback(self, interaction)
@@ -258,17 +430,14 @@ class WOSMBot(discord.Client):
     
     # Auto redeem handlers
     async def _handle_auto_enable_alliance(self, interaction: discord.Interaction):
-        """Enable auto redeem for an alliance."""
         from modules.gift_codes.views import enable_auto_redeem_callback
         await enable_auto_redeem_callback(self, interaction)
     
     async def _handle_auto_disable_alliance(self, interaction: discord.Interaction):
-        """Disable auto redeem for an alliance."""
         from modules.gift_codes.views import disable_auto_redeem_callback
         await disable_auto_redeem_callback(self, interaction)
     
     async def _handle_auto_redeem_all(self, interaction: discord.Interaction):
-        """Redeem a code for all alliances with auto redeem enabled."""
         from modules.gift_codes.views import redeem_all_alliances_callback
         await redeem_all_alliances_callback(self, interaction)
     
@@ -303,8 +472,8 @@ class WOSMBot(discord.Client):
     async def _handle_cancel(self, interaction: discord.Interaction):
         await interaction.response.send_message(i18n.get("messages.action_cancelled"), ephemeral=True)
     
+    # Select menu handlers
     async def _handle_language_select(self, interaction: discord.Interaction):
-        """Handle language selection."""
         if interaction.data.get("values"):
             new_locale = interaction.data["values"][0]
             await i18n.set_locale(new_locale)
@@ -314,10 +483,8 @@ class WOSMBot(discord.Client):
             )
     
     async def _handle_owner_section_select(self, interaction: discord.Interaction):
-        """Handle owner panel section selection."""
         if interaction.data.get("values"):
             section = interaction.data["values"][0]
-            
             handlers = {
                 "language": self._handle_owner_language,
                 "buttons": self._handle_owner_buttons,
@@ -326,17 +493,13 @@ class WOSMBot(discord.Client):
                 "branding": self._handle_owner_branding,
                 "features": self._handle_owner_features,
             }
-            
             handler = handlers.get(section)
             if handler:
                 await handler(interaction)
     
     async def _handle_alliance_select_enable(self, interaction: discord.Interaction):
-        """Handle alliance selection for enabling auto redeem."""
         if interaction.data.get("values"):
             alliance_id = int(interaction.data["values"][0])
-            
-            # Update database
             await db.execute(
                 "UPDATE alliances SET auto_gift_enabled = 1 WHERE id = ?",
                 (alliance_id,)
@@ -351,7 +514,6 @@ class WOSMBot(discord.Client):
                 description=f"**{alliance_name}**",
                 color=0x2ecc71
             )
-            
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
             await audit_log.log(
@@ -363,11 +525,8 @@ class WOSMBot(discord.Client):
             )
     
     async def _handle_alliance_select_disable(self, interaction: discord.Interaction):
-        """Handle alliance selection for disabling auto redeem."""
         if interaction.data.get("values"):
             alliance_id = int(interaction.data["values"][0])
-            
-            # Update database
             await db.execute(
                 "UPDATE alliances SET auto_gift_enabled = 0 WHERE id = ?",
                 (alliance_id,)
@@ -382,7 +541,6 @@ class WOSMBot(discord.Client):
                 description=f"**{alliance_name}**",
                 color=0xe74c3c
             )
-            
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
             await audit_log.log(
@@ -392,6 +550,18 @@ class WOSMBot(discord.Client):
                 category=AuditCategory.GIFT_CODES,
                 details={"alliance_id": alliance_id, "alliance_name": alliance_name}
             )
+    
+    async def _handle_alliance_select(self, interaction: discord.Interaction):
+        await self._route_to_module(interaction, "alliances", "alliance_select")
+    
+    async def _handle_player_select(self, interaction: discord.Interaction):
+        await self._route_to_module(interaction, "players", "player_select")
+    
+    async def _handle_event_select(self, interaction: discord.Interaction):
+        await self._route_to_module(interaction, "events", "event_select")
+    
+    async def _handle_notif_select(self, interaction: discord.Interaction):
+        await self._route_to_module(interaction, "notifications", "notif_select")
     
     async def on_ready(self):
         """Called when bot is ready."""

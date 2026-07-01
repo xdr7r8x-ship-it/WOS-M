@@ -208,3 +208,54 @@ async def list_alliances_callback(bot: WOSMBot, interaction: discord.Interaction
     embed = view.create_embed()
     
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+# =============================================================================
+# Callback stubs for dynamic routing
+# These are called by bot.py's _route_to_module
+# =============================================================================
+
+async def alliance_add_callback(bot, interaction):
+    """Handle alliance_add button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_list_callback(bot, interaction):
+    """Handle alliance_list button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_edit_callback(bot, interaction):
+    """Handle alliance_edit button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_delete_callback(bot, interaction):
+    """Handle alliance_delete button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_sync_settings_callback(bot, interaction):
+    """Handle alliance_sync_settings button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_gift_settings_callback(bot, interaction):
+    """Handle alliance_gift_settings button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_redeem_modal_callback(bot, interaction):
+    """Handle alliance_redeem_modal button."""
+    await alliances_callback(bot, interaction)
+
+
+async def alliance_select_callback(bot, interaction):
+    """Handle alliance_select from select menu."""
+    if interaction.data.get("values"):
+        selected_id = interaction.data["values"][0]
+        # TODO: Handle alliance selection
+        await interaction.response.send_message(
+            f"✅ Selected alliance: {selected_id}",
+            ephemeral=True
+        )

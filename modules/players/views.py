@@ -259,3 +259,58 @@ async def search_player_callback(bot: WOSMBot, interaction: discord.Interaction)
         )
     
     await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+# =============================================================================
+# Callback stubs for dynamic routing
+# Called by bot.py's _route_to_module
+# =============================================================================
+
+async def player_add_callback(bot, interaction):
+    """Handle player_add button."""
+    # TODO: Implement player_add functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def player_export_callback(bot, interaction):
+    """Handle player_export button."""
+    # TODO: Implement player_export functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def player_list_callback(bot, interaction):
+    """Handle player_list button."""
+    # TODO: Implement player_list functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def player_move_callback(bot, interaction):
+    """Handle player_move button."""
+    # TODO: Implement player_move functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def player_search_callback(bot, interaction):
+    """Handle player_search button."""
+    # TODO: Implement player_search functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def player_sync_callback(bot, interaction):
+    """Handle player_sync button."""
+    # TODO: Implement player_sync functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+

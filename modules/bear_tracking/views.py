@@ -127,3 +127,50 @@ async def bear_leaderboard_callback(bot: WOSMBot, interaction: discord.Interacti
         )
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# =============================================================================
+# Callback stubs for dynamic routing
+# Called by bot.py's _route_to_module
+# =============================================================================
+
+async def bear_add_callback(bot, interaction):
+    """Handle bear_add button."""
+    # TODO: Implement bear_add functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def bear_archive_callback(bot, interaction):
+    """Handle bear_archive button."""
+    # TODO: Implement bear_archive functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def bear_damage_callback(bot, interaction):
+    """Handle bear_damage button."""
+    # TODO: Implement bear_damage functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def bear_ocr_callback(bot, interaction):
+    """Handle bear_ocr button."""
+    # TODO: Implement bear_ocr functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def bear_report_callback(bot, interaction):
+    """Handle bear_report button."""
+    # TODO: Implement bear_report functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+

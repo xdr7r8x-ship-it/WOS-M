@@ -555,3 +555,106 @@ async def redeem_all_alliances_callback(bot: WOSMBot, interaction: discord.Inter
         category=AuditCategory.GIFT_CODES,
         details={"code": code, "success": total_success, "failed": total_failed}
     )
+
+
+# =============================================================================
+# Callback stubs for dynamic routing
+# Called by bot.py's _route_to_module
+# =============================================================================
+
+async def alliance_redeem_modal_callback(bot, interaction):
+    """Handle alliance_redeem_modal button."""
+    # TODO: Implement alliance_redeem_modal functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def alliance_select_disable_callback(bot, interaction):
+    """Handle alliance_select_disable button."""
+    # TODO: Implement alliance_select_disable functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def alliance_select_enable_callback(bot, interaction):
+    """Handle alliance_select_enable button."""
+    # TODO: Implement alliance_select_enable functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def auto_disable_alliance_callback(bot, interaction):
+    """Handle auto_disable_alliance button."""
+    # TODO: Implement auto_disable_alliance functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def auto_enable_alliance_callback(bot, interaction):
+    """Handle auto_enable_alliance button."""
+    # TODO: Implement auto_enable_alliance functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def auto_redeem_all_callback(bot, interaction):
+    """Handle auto_redeem_all button."""
+    # TODO: Implement auto_redeem_all functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def gift_add_callback(bot, interaction):
+    """Handle gift_add button."""
+    # TODO: Implement gift_add functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def gift_auto_callback(bot, interaction):
+    """Handle gift_auto button."""
+    # TODO: Implement gift_auto functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def gift_batch_callback(bot, interaction):
+    """Handle gift_batch button."""
+    # TODO: Implement gift_batch functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def gift_redeem_alliance_callback(bot, interaction):
+    """Handle gift_redeem_alliance button."""
+    # TODO: Implement gift_redeem_alliance functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def gift_redeem_single_callback(bot, interaction):
+    """Handle gift_redeem_single button."""
+    # TODO: Implement gift_redeem_single functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
+async def single_redeem_modal_callback(bot, interaction):
+    """Handle single_redeem_modal button."""
+    # TODO: Implement single_redeem_modal functionality
+    await interaction.response.send_message(
+        "⚠️ هذه الميزة قيد التطوير.",
+        ephemeral=True
+    )
+
