@@ -69,16 +69,11 @@ def check_system():
     if demo_mode:
         warnings.append("DEMO MODE ACTIVE")
         print("WARN: WOSM_DEMO_MODE=true (Demo mode - no real redemption)")
-        
-        # In demo mode, API warnings are informational only
-        if os.getenv("GIFT_CODE_API_BASE_URL"):
-            print("INFO: Gift API configured (but using demo mode)")
-        else:
-            print("INFO: Gift API not configured (demo mode)")
+        print("INFO: Gift API not configured (demo mode)")
     else:
         print("PASS: Production mode")
         
-        # Check Open Source Adapter or external API
+        # Check Open Source Adapter
         has_adapter = Path(__file__).parent / "integrations" / "wos_open_source_adapter.py"
         
         # Check if we have OCR capability
@@ -86,23 +81,35 @@ def check_system():
         try:
             import ddddocr
             has_ocr = True
+            print("PASS: ddddocr installed (OCR available)")
         except ImportError:
-            pass
+            print("FAIL: ddddocr not installed")
+            issues.append("ddddocr not installed")
         
-        has_external_captcha = bool(os.getenv("CAPTCHA_SERVICE_URL") and os.getenv("CAPTCHA_SERVICE_TOKEN"))
-        has_gift_api = bool(os.getenv("GIFT_CODE_API_BASE_URL"))
+        has_local_ocr = os.getenv("CAPTCHA_SERVICE_URL") == "local-ddddocr"
+        has_external_captcha = bool(
+            os.getenv("CAPTCHA_SERVICE_URL") and 
+            os.getenv("CAPTCHA_SERVICE_TOKEN") and 
+            not has_local_ocr
+        )
+        has_gift_api = bool(
+            os.getenv("GIFT_CODE_API_BASE_URL") or 
+            os.getenv("WOS_GIFT_PUBLIC_ENDPOINT")
+        )
         
-        if not has_ocr and not has_external_captcha:
-            if has_adapter.exists():
-                print("WARN: Open source adapter available but no OCR solution")
-                print("INFO: Install ddddocr or configure CAPTCHA service")
-            else:
-                issues.append("No OCR solution - install ddddocr or set CAPTCHA_SERVICE")
+        if has_ocr or has_local_ocr:
+            print("PASS: OCR solution available")
+        elif has_external_captcha:
+            print("PASS: External CAPTCHA service configured")
+        else:
+            issues.append("No OCR solution - install ddddocr or set CAPTCHA_SERVICE")
         
         if has_gift_api:
             print("PASS: Gift API configured")
+        elif has_adapter.exists():
+            print("PASS: Open source adapter available")
         else:
-            print("INFO: Using open source adapter (centurygame.com)")
+            issues.append("No Gift API configured")
     
     # Check locales
     locales_dir = Path(__file__).parent / "locales"

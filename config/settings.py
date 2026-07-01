@@ -42,6 +42,7 @@ class APIConfig:
     captcha_service_url: str = ""
     captcha_service_token: str = ""
     ocr_service_url: str = ""
+    use_local_ocr: bool = False  # Set to true when CAPTCHA_SERVICE_URL=local-ddddocr
     request_timeout: int = 30
     rate_limit_calls: int = 10
     rate_limit_period: int = 60
@@ -122,6 +123,12 @@ class Settings:
         settings.api.captcha_service_url = os.getenv("CAPTCHA_SERVICE_URL", "")
         settings.api.captcha_service_token = os.getenv("CAPTCHA_SERVICE_TOKEN", "")
         settings.api.ocr_service_url = os.getenv("OCR_SERVICE_URL", "")
+        
+        # Detect local ddddocr usage
+        settings.api.use_local_ocr = (
+            settings.api.captcha_service_url == "local-ddddocr" or
+            settings.api.captcha_service_token == "local"
+        )
         
         # Demo mode - must be explicitly enabled
         demo_mode_str = os.getenv("WOSM_DEMO_MODE", "false").lower()
