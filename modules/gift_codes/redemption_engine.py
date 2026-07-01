@@ -153,6 +153,8 @@ class RedemptionEngine:
             player_id,
             model_status.value,
             error_message=error_msg,
+            provider="WhiteoutProject",
+            api_status=status.value,
         )
         
         if status in [WPStatus.SUCCESS, WPStatus.RECEIVED, WPStatus.SAME_TYPE_EXCHANGE]:
