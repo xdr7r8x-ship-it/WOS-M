@@ -43,6 +43,10 @@ class APIConfig:
     captcha_service_token: str = ""
     ocr_service_url: str = ""
     use_local_ocr: bool = False  # Set to true when CAPTCHA_SERVICE_URL=local-ddddocr
+    # External Redemption Provider (for authorized API access)
+    external_provider_api_key: str = ""
+    external_provider_url: str = ""
+    external_provider_name: str = "WoSTools"
     request_timeout: int = 30
     rate_limit_calls: int = 10
     rate_limit_period: int = 60
@@ -129,6 +133,11 @@ class Settings:
             settings.api.captcha_service_url == "local-ddddocr" or
             settings.api.captcha_service_token == "local"
         )
+        
+        # External Redemption Provider
+        settings.api.external_provider_api_key = os.getenv("EXTERNAL_PROVIDER_API_KEY", "")
+        settings.api.external_provider_url = os.getenv("EXTERNAL_PROVIDER_URL", "")
+        settings.api.external_provider_name = os.getenv("EXTERNAL_PROVIDER_NAME", "WoSTools")
         
         # Demo mode - must be explicitly enabled
         demo_mode_str = os.getenv("WOSM_DEMO_MODE", "false").lower()

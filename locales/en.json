@@ -125,7 +125,19 @@
     "captcha_settings": "🔐 Captcha Settings",
     "report": "📋 Redemption Report",
     "new_code_notification": "🔔 New code received",
-    "demo_mode_warning": "⚠️ Demo Mode - NOT REAL REDEMPTION"
+    "demo_mode_warning": "⚠️ Demo Mode - NOT REAL REDEMPTION",
+    "locked_status": "🔒 Locked: API requires authentication",
+    "real_redemption_requires_auth": "Real redemption requires an authorized API key or login token. Demo redemption remains available.",
+    "external_provider": "🌐 External Redemption Provider",
+    "external_provider_desc": "Configure an authorized redemption provider (e.g., WoSTools)",
+    "provider_api_key": "API Key",
+    "provider_api_key_placeholder": "Enter your API key",
+    "provider_save": "💾 Save Provider",
+    "provider_saved": "✅ External provider configured",
+    "provider_not_configured": "⚠️ No external provider configured",
+    "api_auth_required": "🔐 API requires authentication",
+    "api_not_login": "NOT LOGIN (Error 40009)",
+    "contact_owner": "Contact the bot owner to configure an authorized provider."
   },
   "events": {
     "title": "📅 Event Management",

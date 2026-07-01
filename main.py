@@ -108,6 +108,16 @@ def check_system():
             print("PASS: Gift API configured")
         elif has_adapter.exists():
             print("PASS: Open source adapter available")
+            
+            # Check if external provider is configured
+            has_external_provider = bool(os.getenv("EXTERNAL_PROVIDER_API_KEY"))
+            if has_external_provider:
+                provider_name = os.getenv("EXTERNAL_PROVIDER_NAME", "External")
+                print(f"PASS: External provider configured ({provider_name})")
+            else:
+                print("WARN: External provider NOT configured")
+                print("WARN: Real redemption is LOCKED (API requires auth - Error 40009)")
+                print("INFO: Configure EXTERNAL_PROVIDER_API_KEY for real redemption")
         else:
             issues.append("No Gift API configured")
     

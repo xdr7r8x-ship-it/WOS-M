@@ -125,7 +125,19 @@
     "captcha_settings": "🔐 إعدادات Captcha",
     "report": "📋 تقرير الاسترداد",
     "new_code_notification": "🔔 كود جديد تم استلامه",
-    "demo_mode_warning": "⚠️ وضع المحاكاة - ليس استرداداً حقيقياً"
+    "demo_mode_warning": "⚠️ وضع المحاكاة - ليس استرداداً حقيقياً",
+    "locked_status": "🔒 مقفل: API يتطلب مصادقة",
+    "real_redemption_requires_auth": "الاسترداد الحقيقي يتطلب مفتاح API أو رمز تسجيل مصرح. الاسترداد التجريبي متاح.",
+    "external_provider": "🌐 مزود استرداد خارجي",
+    "external_provider_desc": "تكوين مزود استرداد مصرح (مثل WoSTools)",
+    "provider_api_key": "مفتاح API",
+    "provider_api_key_placeholder": "أدخل مفتاح API الخاص بك",
+    "provider_save": "💾 حفظ المزود",
+    "provider_saved": "✅ تم تكوين المزود الخارجي",
+    "provider_not_configured": "⚠️ لم يتم تكوين مزود خارجي",
+    "api_auth_required": "🔐 API يتطلب مصادقة",
+    "api_not_login": "غير مسجل الدخول (خطأ 40009)",
+    "contact_owner": "تواصل مع مالك البوت لتكوين مزود مصرح."
   },
   "events": {
     "title": "📅 إدارة الأحداث",

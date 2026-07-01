@@ -24,6 +24,7 @@ class GiftCodeStatus:
     ALREADY_REDEEMED = "already_redeemed"
     FAILED = "failed"
     DEMO_MODE = "demo_mode"
+    LOCKED = "locked"  # API requires authentication
 
 
 class GiftCodeClient:
