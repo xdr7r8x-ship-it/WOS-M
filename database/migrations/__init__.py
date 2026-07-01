@@ -21,6 +21,14 @@ MIGRATIONS = [
             CREATE UNIQUE INDEX IF NOT EXISTS idx_redemptions_unique 
             ON gift_redemptions(code_id, player_id);
         """
+    },
+    {
+        "version": 3,
+        "name": "add_alliance_discord_role_id",
+        "description": "Add discord_role_id column to alliances table",
+        "sql": """
+            ALTER TABLE alliances ADD COLUMN discord_role_id TEXT;
+        """
     }
 ]
 

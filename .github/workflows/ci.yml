@@ -111,3 +111,42 @@ jobs:
             exit(1)
           print('No placeholders found')
           "
+      
+      - name: Check for TODO/under development
+        run: |
+          python -c "
+          from pathlib import Path
+          
+          forbidden = ['TODO', 'قيد التطوير', 'غير مفعّلة', 'Coming soon', 'Not implemented']
+          found = []
+          
+          for py in Path('modules').rglob('*.py'):
+            with open(py) as f:
+              for i, line in enumerate(f, 1):
+                for pattern in forbidden:
+                  if pattern in line:
+                    found.append(f'{py}:{i}: {pattern}')
+          
+          if found:
+            print('FOUND ISSUE:')
+            for f in found[:10]:
+              print(f'  {f}')
+            exit(1)
+          print('No TODO/under development found')
+          "
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        run: docker build . --tag wos-m:test --load
+      
+      - name: Verify image created
+        run: docker images wos-m:test

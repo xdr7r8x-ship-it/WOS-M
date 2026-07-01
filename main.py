@@ -173,11 +173,33 @@ def check_system():
         if f'"{cb}"' not in open(bot_file).read():
             issues.append(f"Missing: {cb}")
     
-    # Check database columns
+    # Check database columns - Schema Contract
     db_file = Path(__file__).parent / "core" / "database.py"
-    for col in ["auto_gift_enabled", "gift_channel_id", "member_count"]:
-        if col not in open(db_file).read():
-            issues.append(f"Missing column: {col}")
+    required_columns = {
+        "alliances": ["id", "name", "state_kid", "discord_guild_id", "discord_role_id",
+                       "auto_gift_enabled", "gift_channel_id", "member_count", "sync_enabled",
+                       "report_channel_id", "is_active", "created_at", "updated_at"],
+        "players": ["id", "fid", "name", "alliance_id", "level", "is_active", "created_at", "updated_at"],
+    }
+    
+    db_content = open(db_file).read()
+    for table, cols in required_columns.items():
+        for col in cols:
+            if col not in db_content:
+                issues.append(f"FAIL: database schema mismatch - {table}.{col} not in schema")
+    
+    # Verify discord_role_id specifically
+    if "discord_role_id" not in db_content:
+        issues.append("FAIL: discord_role_id column missing from alliances schema")
+    
+    # Check migrations
+    migrations_file = Path(__file__).parent / "database" / "migrations" / "__init__.py"
+    if migrations_file.exists():
+        migrations_content = open(migrations_file).read()
+        if "add_alliance_discord_role_id" not in migrations_content:
+            issues.append("FAIL: migration add_alliance_discord_role_id not found")
+    else:
+        issues.append("FAIL: migrations file not found")
     
     # Check _run_migrations
     with open(db_file) as f:

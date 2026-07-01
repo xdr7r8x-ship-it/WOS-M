@@ -165,6 +165,7 @@ class Database:
                 name TEXT NOT NULL,
                 state_kid TEXT,
                 discord_guild_id TEXT,
+                discord_role_id TEXT,
                 auto_gift_enabled BOOLEAN DEFAULT 0,
                 gift_channel_id TEXT,
                 member_count INTEGER DEFAULT 0,
