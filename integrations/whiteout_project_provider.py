@@ -1,33 +1,14 @@
 """
-WOS-M WhiteoutProject Provider
-© MANSOUR — WOS-M. All rights reserved.
+WOS-M WhiteoutProject Provider - Real Gift Code Redemption
+Based on: https://github.com/whiteout-project/bot
 
-Integration with WhiteoutProject/bot API patterns.
-Based on public code from: https://github.com/whiteout-project/bot
-
-LEGAL NOTICE:
-- Uses publicly documented API patterns and endpoints
-- Sign salt tB87#kPtkxqOS2 is publicly known from multiple open-source implementations
-- Requires authorized credentials from a provider
-- All secrets read from .env only - never hardcoded
-
-API Flow (from whiteout-project/bot):
-- Login/Player check: /api/player
-- Gift redemption: /api/gift_code
-- CAPTCHA: /api/captcha
-- Dual API support: centurygame.com + gof-report-api-formal.centurygame.com
-
-Attribution: whiteout-project/bot (https://github.com/whiteout-project/bot)
+Real redemption path:
+1. /api/player - Player lookup
+2. /api/captcha - Fetch CAPTCHA
+3. OCR solve
+4. /api/gift_code - Redeem
 """
-import asyncio
-import hashlib
-import time
-import ssl
-import certifi
-import aiohttp
-import base64
-import random
-import logging
+import asyncio, hashlib, time, ssl, certifi, aiohttp, base64, random, logging
 from typing import Optional, Dict, Any, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
@@ -37,567 +18,206 @@ from integrations.browser_headers import get_headers
 
 logger = logging.getLogger(__name__)
 
-
-class RedemptionResult(Enum):
-    """Redemption result codes from API."""
-    SUCCESS = "success"
-    ALREADY_CLAIMED = "already_claimed"
-    CODE_NOT_EXIST = "code_not_exist"
-    CODE_EXPIRED = "code_expired"
-    CODE_FULLY_CLAIMED = "code_fully_claimed"
-    CAPTCHA_ERROR = "captcha_error"
-    NOT_LOGIN = "not_login"
-    UNAUTHORIZED = "unauthorized"
-    RATE_LIMITED = "rate_limited"
-    ERROR = "error"
-    UNKNOWN = "unknown"
-
-
-@dataclass
-class RedemptionResponse:
-    """Response from redemption attempt."""
-    success: bool
-    result: RedemptionResult
-    message: str
-    player_data: Optional[Dict[str, Any]] = None
-
+class RedemptionStatus(Enum):
+    SUCCESS = "SUCCESS"; RECEIVED = "RECEIVED"; SAME_TYPE_EXCHANGE = "SAME TYPE EXCHANGE"
+    TOO_POOR_SPEND_MORE = "TOO_POOR_SPEND_MORE"; TOO_SMALL_SPEND_MORE = "TOO_SMALL_SPEND_MORE"
+    TIME_ERROR = "TIME_ERROR"; CDK_NOT_FOUND = "CDK_NOT_FOUND"; USAGE_LIMIT = "USAGE_LIMIT"
+    NOT_LOGIN = "NOT_LOGIN"; UNAUTHORIZED = "UNAUTHORIZED"; LOGIN_FAILED = "LOGIN_FAILED"
+    CAPTCHA_ERROR = "CAPTCHA_ERROR"; CAPTCHA_INVALID = "CAPTCHA_INVALID"
+    CAPTCHA_TOO_FREQUENT = "CAPTCHA_TOO_FREQUENT"; CAPTCHA_FETCH_ERROR = "CAPTCHA_FETCH_ERROR"
+    SOLVER_ERROR = "SOLVER_ERROR"; OCR_DISABLED = "OCR_DISABLED"
+    SIGN_ERROR = "SIGN_ERROR"; TIMEOUT_RETRY = "TIMEOUT_RETRY"
+    CONNECTION_ERROR = "CONNECTION_ERROR"; ERROR = "ERROR"; UNKNOWN_API_RESPONSE = "UNKNOWN_API_RESPONSE"
 
 @dataclass
 class PlayerInfo:
-    """Player information."""
-    fid: str
-    name: Optional[str] = None
-    level: Optional[int] = None
-    alliance: Optional[str] = None
+    fid: str; name: Optional[str] = None; level: Optional[int] = None
+    alliance: Optional[str] = None; alliance_id: Optional[str] = None
 
+@dataclass
+class RedeemResult:
+    status: RedemptionStatus; message: str
+    player_info: Optional[PlayerInfo] = None; raw_response: Optional[Dict] = None
 
 class WhiteoutProjectProvider:
-    """
-    WhiteoutProject API adapter.
-    
-    Based on whiteout-project/bot implementation patterns:
-    - Dual API support for better availability
-    - Rate limiting (30 requests per 60 seconds)
-    - Exponential backoff on errors
-    - Browser headers for requests
-    
-    Configuration from .env:
-    - EXTERNAL_PROVIDER_API_KEY: Optional API key
-    - EXTERNAL_PROVIDER_LOGIN_TOKEN: Optional login token
-    - EXTERNAL_PROVIDER_COOKIE: Optional cookie
-    - EXTERNAL_PROVIDER_SESSION: Optional session
-    """
-    
-    # Primary API endpoints (from whiteout-project/bot)
-    API1_URL = "https://wos-giftcode-api.centurygame.com"
-    API2_URL = "https://gof-report-api-formal.centurygame.com"
-    
-    # Public sign salt (publicly known from multiple open-source implementations)
-    DEFAULT_SIGN_SALT = "tB87#kPtkxqOS2"
-    
+    API_BASE = "https://wos-giftcode-api.centurygame.com"
+    API_PLAYER = "https://wos-giftcode-api.centurygame.com/api/player"
+    API_CAPTCHA = "https://wos-giftcode-api.centurygame.com/api/captcha"
+    API_REDEEM = "https://wos-giftcode-api.centurygame.com/api/gift_code"
+    SIGN_SALT = "tB87#kPtkxqOS2"
+    RATE_LIMIT = 30; RATE_WINDOW = 60; MAX_RETRIES = 3; RETRY_DELAY = 3.0
+
     def __init__(self):
-        self.session: Optional[aiohttp.ClientSession] = None
-        self._ocr = None
-        self._ocr_available = False
-        
-        # Configuration from settings (.env only)
+        self._session = None; self._ocr = None; self._ocr_ok = False
         self.provider_name = settings.api.external_provider_name or "WhiteoutProject"
-        self.provider_url = settings.api.external_provider_url or ""
+        self.api_base = settings.api.external_provider_url or self.API_BASE
         self.api_key = settings.api.external_provider_api_key or ""
         self.login_token = settings.api.external_provider_login_token or ""
         self.cookie = settings.api.external_provider_cookie or ""
         self.session_id = settings.api.external_provider_session or ""
-        self.sign_secret = settings.api.external_provider_sign_secret or self.DEFAULT_SIGN_SALT
-        
-        # Rate limiting (from whiteout-project/bot patterns)
-        self.api1_requests: List[float] = []
-        self.api2_requests: List[float] = []
-        self.rate_limit_per_api = 30
-        self.rate_limit_window = 60
-        
-        # Dual API mode
-        self.dual_api_mode = False
-        self.available_apis: List[int] = []
-        self.request_delay = 2.0
-        
-        # Retry configuration
-        self.max_retries = 3
-        self.retry_delay = 3.0
-        
-        # Backoff configuration
-        self.error_backoff_time = 30
-        self.cloudflare_backoff_time = 15
-        self.max_backoff_time = 300
-        self.current_backoff = self.error_backoff_time
-        
+        self.sign_secret = settings.api.external_provider_sign_secret or self.SIGN_SALT
+        self._r1 = []; self._r2 = []; self._enabled = False; self._test_result = None
         self._init_ocr()
-    
+
     def _init_ocr(self):
-        """Initialize OCR for CAPTCHA solving."""
         try:
             import ddddocr
-            self._ocr = ddddocr.DdddOcr(show_ad=False)
-            self._ocr_available = True
-            logger.info("ddddocr initialized for CAPTCHA solving")
-        except ImportError:
-            logger.warning("ddddorc not installed")
-            self._ocr_available = False
-    
+            self._ocr = ddddocr.DdddOcr(show_ad=False); self._ocr_ok = True
+            logger.info("ddddocr initialized")
+        except: logger.warning("ddddocr not installed"); self._ocr_ok = False
 
-    
-    def is_configured(self) -> bool:
-        """Check if provider is configured for redemption."""
-        # Can work with just the public API (may get 40009 NOT LOGIN)
-        # Or requires authorized credentials
-        return True  # Always configured, but may return NOT_LOGIN
-    
-    def is_fully_configured(self) -> bool:
-        """Check if all required credentials are present."""
-        return bool(
-            self.api_key or 
-            self.login_token or 
-            self.cookie or 
-            self.session_id
-        )
-    
-    async def init_session(self):
-        """Initialize HTTP session."""
-        if self.session is None:
-            ssl_context = ssl.create_default_context(cafile=certifi.where())
-            connector = aiohttp.TCPConnector(ssl=ssl_context)
-            self.session = aiohttp.ClientSession(
-                connector=connector,
-                trust_env=True
-            )
-    
+    def is_configured(self): return bool(self.api_key or self.login_token or self.cookie or self.session_id)
+    def is_enabled(self): return self._enabled
+    def get_status(self):
+        if self._enabled: return f"Enabled ({self.provider_name})"
+        elif self.is_configured(): return f"Configured - {self._test_result or 'Unknown'}"
+        return "Locked - Missing credentials"
+
+    async def init(self):
+        if not self._session:
+            ctx = ssl.create_default_context(cafile=certifi.where())
+            self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ctx), trust_env=True)
+
     async def close(self):
-        """Close HTTP session."""
-        if self.session:
-            await self.session.close()
-            self.session = None
-    
-    def _generate_sign(self, params: Dict[str, Any]) -> str:
-        """Generate HMAC-MD5 signature (from whiteout-project/bot)."""
-        # Sort parameters alphabetically
-        sorted_params = sorted(params.items())
-        param_string = "&".join(f"{k}={v}" for k, v in sorted_params)
-        # Add salt
-        param_string += self.sign_secret
-        return hashlib.md5(param_string.encode()).hexdigest()
-    
-    def _get_headers(self, origin: str = "") -> Dict[str, str]:
-        """Get request headers with browser randomization."""
-        headers = get_headers(origin) if origin else get_headers()
-        
-        if self.api_key:
-            headers["X-API-Key"] = self.api_key
-        if self.login_token:
-            headers["X-Login-Token"] = self.login_token
-        if self.cookie:
-            headers["Cookie"] = self.cookie
-        if self.session_id:
-            headers["X-Session-ID"] = self.session_id
-            
-        return headers
-    
-    def _check_rate_limit(self, api_num: int) -> float:
-        """Check rate limit and return wait time if needed."""
-        now = time.time()
-        
-        if api_num == 1:
-            self.api1_requests = [t for t in self.api1_requests if now - t < self.rate_limit_window]
-            if len(self.api1_requests) >= self.rate_limit_per_api:
-                oldest = min(self.api1_requests)
-                return self.rate_limit_window - (now - oldest)
-            self.api1_requests.append(now)
-        else:
-            self.api2_requests = [t for t in self.api2_requests if now - t < self.rate_limit_window]
-            if len(self.api2_requests) >= self.rate_limit_per_api:
-                oldest = min(self.api2_requests)
-                return self.rate_limit_window - (now - oldest)
-            self.api2_requests.append(now)
-        
-        return 0
-    
-    async def _wait_for_rate_limit(self, api_num: int):
-        """Wait if rate limited."""
-        wait_time = self._check_rate_limit(api_num)
-        if wait_time > 0:
-            wait_time += random.uniform(0, 0.5)
-            logger.warning(f"Rate limited on API{api_num}, waiting {wait_time:.1f}s")
-            await asyncio.sleep(wait_time)
-    
-    def _handle_api_error(self, status: int, response_text: str) -> float:
-        """Handle API errors and return backoff time."""
-        if status == 429 or status == 1015:
-            self.current_backoff = max(self.cloudflare_backoff_time, self.current_backoff)
-            self.current_backoff *= random.uniform(1.0, 1.5)
-            self.current_backoff = min(self.current_backoff * 2, self.max_backoff_time)
-            return self.current_backoff
-        elif status in [502, 503, 504]:
-            backoff = self.current_backoff * random.uniform(0.75, 1.25)
-            self.current_backoff = min(self.current_backoff * 2, self.max_backoff_time)
-            return backoff
-        else:
-            self.current_backoff = min(self.current_backoff * 2, self.max_backoff_time)
-            return self.current_backoff * random.uniform(0.75, 1.25)
-    
-    async def check_apis_availability(self, test_fid: str = "45379845") -> Dict[str, bool]:
-        """Check which APIs are available (from whiteout-project/bot patterns)."""
-        api_status = {
-            "api1_available": False,
-            "api2_available": False,
-            "api1_url": f"{self.API1_URL}/api/player",
-            "api2_url": f"{self.API2_URL}/api/player"
-        }
-        
-        if not self.session:
-            await self.init_session()
-        
-        # Test API 1
+        if self._session: await self._session.close(); self._session = None
+
+    def _sign(self, params):
+        s = "&".join(f"{k}={v}" for k,v in sorted(params.items())) + self.sign_secret
+        return hashlib.md5(s.encode()).hexdigest()
+
+    def _hdrs(self, url=""):
+        h = get_headers(url) if url else get_headers()
+        if self.api_key: h["X-API-Key"] = self.api_key
+        if self.login_token: h["X-Login-Token"] = self.login_token
+        if self.cookie: h["Cookie"] = self.cookie
+        if self.session_id: h["X-Session-ID"] = self.session_id
+        return h
+
+    def _check_rate(self, api):
+        now = time.time(); lst = self._r1 if api==1 else self._r2
+        lst[:] = [t for t in lst if now-t < self.RATE_WINDOW]
+        if len(lst) >= self.RATE_LIMIT: return self.RATE_WINDOW - (now-min(lst))
+        lst.append(now); return 0
+
+    async def _wait_rate(self, api=1):
+        w = self._check_rate(api)
+        if w > 0: w += random.uniform(0,.5); await asyncio.sleep(w)
+
+    async def test(self):
+        await self.init(); await self._wait_rate(1)
+        now = int(time.time()*1000); params = {"fid": "45379845", "time": now}
+        sign = self._sign(params)
         try:
-            now = int(time.time() * 1000)
-            params = {"fid": test_fid, "time": now}
-            sign = self._generate_sign(params)
-            
-            async with self.session.post(
-                f"{self.API1_URL}/api/player",
-                headers=self._get_headers(),
-                data={"fid": test_fid, "time": now, "sign": sign},
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                api_status["api1_available"] = resp.status in [200, 429]
+            async with self._session.post(self.API_PLAYER, headers=self._hdrs(self.API_BASE),
+                data={"fid": "45379845", "time": now, "sign": sign}, timeout=aiohttp.ClientTimeout(total=15)) as r:
+                if r.status == 403:
+                    self._enabled = False; self._test_result = "Unauthorized"
+                    return False, "UNAUTHORIZED - API requires credentials"
+                if r.status == 200:
+                    res = await r.json()
+                    if res.get("msg") == "success":
+                        self._enabled = True; self._test_result = "Connected"
+                        return True, "SUCCESS - API connected"
+                    elif res.get("msg") == "NOT LOGIN":
+                        self._enabled = True; self._test_result = "NOT_LOGIN"
+                        return True, "NOT_LOGIN - but API responding"
+                self._enabled = False; self._test_result = f"Error {r.status}"
+                return False, f"API status {r.status}"
+        except asyncio.TimeoutError:
+            self._enabled = False; self._test_result = "Timeout"
+            return False, "Timeout"
         except Exception as e:
-            logger.error(f"API1 availability check failed: {e}")
-        
-        # Test API 2
-        try:
-            now = int(time.time() * 1000)
-            params = {"fid": test_fid, "time": now}
-            sign = self._generate_sign(params)
-            
-            async with self.session.post(
-                f"{self.API2_URL}/api/player",
-                headers=self._get_headers(),
-                data={"fid": test_fid, "time": now, "sign": sign},
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                api_status["api2_available"] = resp.status in [200, 429]
-        except Exception as e:
-            logger.error(f"API2 availability check failed: {e}")
-        
-        # Update configuration based on availability
-        if api_status["api1_available"] and api_status["api2_available"]:
-            self.dual_api_mode = True
-            self.available_apis = [1, 2]
-            self.request_delay = 1.0
-        elif api_status["api1_available"]:
-            self.dual_api_mode = False
-            self.available_apis = [1]
-            self.request_delay = 2.0
-        elif api_status["api2_available"]:
-            self.dual_api_mode = False
-            self.available_apis = [2]
-            self.request_delay = 2.0
-        else:
-            self.available_apis = []
-        
-        return api_status
-    
-    async def get_player_info(self, fid: str) -> Tuple[bool, Optional[PlayerInfo], str]:
-        """Get player information (from whiteout-project/bot patterns)."""
-        if not self.session:
-            await self.init_session()
-        
-        await self._wait_for_rate_limit(1)
-        
-        now = int(time.time() * 1000)
-        params = {"fid": fid, "time": now}
-        sign = self._generate_sign(params)
-        
-        for attempt in range(self.max_retries):
+            self._enabled = False; self._test_result = str(e)
+            return False, f"Error: {e}"
+
+    async def get_player(self, fid):
+        await self.init(); await self._wait_rate(1)
+        now = int(time.time()*1000); params = {"fid": fid, "time": now}; sign = self._sign(params)
+        for _ in range(self.MAX_RETRIES):
             try:
-                async with self.session.post(
-                    f"{self.API1_URL}/api/player",
-                    headers=self._get_headers(),
-                    data={"fid": fid, "time": now, "sign": sign},
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as resp:
-                    text = await resp.text()
-                    
-                    if resp.status == 403:
-                        return False, None, "UNAUTHORIZED"
-                    
-                    try:
-                        result = await resp.json()
-                    except:
-                        return False, None, "INVALID_RESPONSE"
-                    
-                    if result.get("msg") == "success":
-                        data = result.get("data", {})
-                        player = PlayerInfo(
-                            fid=fid,
-                            name=data.get("name"),
-                            level=data.get("level"),
-                            alliance=data.get("alliance")
-                        )
-                        return True, player, "success"
-                    elif result.get("msg") == "NOT LOGIN":
-                        return False, None, "NOT_LOGIN"
-                    else:
-                        return False, None, result.get("msg", "LOGIN_ERROR")
-                        
-            except asyncio.TimeoutError:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Timeout getting player info, retry {attempt + 1}/{self.max_retries}")
-                    await asyncio.sleep(self.retry_delay)
-                else:
-                    return False, None, "TIMEOUT"
-            except Exception as e:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Error getting player info: {e}, retry {attempt + 1}/{self.max_retries}")
-                    await asyncio.sleep(self.retry_delay)
-                else:
-                    return False, None, f"ERROR: {str(e)}"
-        
+                async with self._session.post(self.API_PLAYER, headers=self._hdrs(self.API_BASE),
+                    data={"fid": fid, "time": now, "sign": sign}, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    if r.status == 403: return False, None, "UNAUTHORIZED"
+                    try: res = await r.json()
+                    except: return False, None, "INVALID_RESPONSE"
+                    if res.get("msg") == "success":
+                        d = res.get("data", {})
+                        return True, PlayerInfo(fid=fid, name=d.get("name"), level=d.get("level"),
+                            alliance=d.get("alliance"), alliance_id=d.get("alliance_id")), "success"
+                    elif res.get("msg") == "NOT LOGIN": return False, None, "NOT_LOGIN"
+                    else: return False, None, res.get("msg", "LOGIN_ERROR")
+            except: await asyncio.sleep(self.RETRY_DELAY)
         return False, None, "MAX_RETRIES"
-    
-    async def fetch_captcha(self, fid: str) -> Tuple[bool, Optional[bytes], str]:
-        """Fetch CAPTCHA image (from whiteout-project/bot patterns)."""
-        if not self.session:
-            await self.init_session()
-        
-        await self._wait_for_rate_limit(1)
-        
-        now = int(time.time() * 1000)
-        params = {"fid": fid, "init": 0, "time": now}
-        sign = self._generate_sign(params)
-        
+
+    async def fetch_captcha(self, fid):
+        await self.init(); await self._wait_rate(1)
+        now = int(time.time()*1000); params = {"fid": fid, "init": 0, "time": now}; sign = self._sign(params)
         try:
-            async with self.session.post(
-                f"{self.API1_URL}/api/captcha",
-                headers=self._get_headers(),
-                data={"fid": fid, "time": now, "init": 0, "sign": sign},
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                try:
-                    captcha_json = await resp.json()
-                except:
-                    return False, None, "INVALID_RESPONSE"
-                
-                err_code = captcha_json.get("err_code")
-                
-                if err_code == 0:
-                    img_data = captcha_json.get("data", {}).get("img", "")
-                    if "," in img_data:
-                        img_bytes = base64.b64decode(img_data.split(",", 1)[1])
-                        return True, img_bytes, "success"
+            async with self._session.post(self.API_CAPTCHA, headers=self._hdrs(self.API_BASE),
+                data={"fid": fid, "time": now, "init": 0, "sign": sign}, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                try: js = await r.json()
+                except: return False, None, "INVALID_RESPONSE"
+                err = js.get("err_code")
+                if err == 0:
+                    img = js.get("data", {}).get("img", "")
+                    if img:
+                        b = base64.b64decode(img.split(",",1)[1]) if "," in img else base64.b64decode(img)
+                        return True, b, "success"
                     return False, None, "INVALID_IMAGE"
-                elif err_code == 40100:
-                    return False, None, "INVALID_FID"
-                elif captcha_json.get("msg") == "NOT LOGIN":
-                    return False, None, "NOT_LOGIN"
-                else:
-                    return False, None, f"CAPTCHA_ERROR_{err_code}"
-                    
-        except Exception as e:
-            return False, None, f"ERROR: {str(e)}"
-    
-    def solve_captcha(self, image_bytes: bytes) -> Optional[str]:
-        """Solve CAPTCHA using OCR."""
-        if not self._ocr_available or self._ocr is None:
-            return None
+                elif err == 40100: return False, None, "INVALID_FID"
+                elif js.get("msg") == "NOT LOGIN": return False, None, "NOT_LOGIN"
+                return False, None, f"CAPTCHA_ERROR_{err}"
+        except Exception as e: return False, None, f"ERROR: {e}"
+
+    def solve_captcha(self, img):
+        if not self._ocr_ok or not self._ocr: return None
+        try: r = self._ocr.classification(img); return r if r else None
+        except: return None
+
+    async def redeem(self, code, fid):
+        await self.init()
+        ok, pinfo, err = await self.get_player(fid)
+        if not ok:
+            if err == "NOT_LOGIN": return RedeemResult(RedemptionStatus.NOT_LOGIN, "API requires login", pinfo)
+            if err == "UNAUTHORIZED": return RedeemResult(RedemptionStatus.UNAUTHORIZED, "API requires auth", pinfo)
+            return RedeemResult(RedemptionStatus.ERROR, f"Player lookup failed: {err}", pinfo)
         
-        try:
-            return self._ocr.classification(image_bytes)
-        except Exception as e:
-            logger.error(f"OCR error: {e}")
-            return None
-    
-    async def redeem(self, code: str, fid: str) -> RedemptionResponse:
-        """
-        Redeem a gift code (from whiteout-project/bot patterns).
+        ok, cap, err = await self.fetch_captcha(fid)
+        if not ok or cap is None:
+            if err == "NOT_LOGIN": return RedeemResult(RedemptionStatus.NOT_LOGIN, "CAPTCHA requires login", pinfo)
+            return RedeemResult(RedemptionStatus.CAPTCHA_FETCH_ERROR, f"CAPTCHA failed: {err}", pinfo)
         
-        Flow:
-        1. Get player info
-        2. Fetch CAPTCHA
-        3. Solve CAPTCHA with OCR
-        4. Submit redemption
-        """
-        if not self.session:
-            await self.init_session()
+        if not self._ocr_ok: return RedeemResult(RedemptionStatus.OCR_DISABLED, "OCR not available", pinfo)
+        captcha = self.solve_captcha(cap)
+        if not captcha: return RedeemResult(RedemptionStatus.SOLVER_ERROR, "OCR failed", pinfo)
         
-        # Step 1: Get player info
-        success, player_info, error = await self.get_player_info(fid)
+        await self._wait_rate(1)
+        now = int(time.time()*1000); params = {"captcha_code": captcha, "cdk": code, "fid": fid, "time": now}
+        sign = self._sign(params)
         
-        if not success:
-            if error == "NOT_LOGIN":
-                return RedemptionResponse(
-                    success=False,
-                    result=RedemptionResult.NOT_LOGIN,
-                    message="API requires login. Configure EXTERNAL_PROVIDER_LOGIN_TOKEN"
-                )
-            elif error == "UNAUTHORIZED":
-                return RedemptionResponse(
-                    success=False,
-                    result=RedemptionResult.UNAUTHORIZED,
-                    message="API requires authorization. Configure EXTERNAL_PROVIDER_API_KEY"
-                )
-            else:
-                return RedemptionResponse(
-                    success=False,
-                    result=RedemptionResult.ERROR,
-                    message=f"Player lookup failed: {error}"
-                )
-        
-        # Step 2: Fetch CAPTCHA
-        has_captcha, captcha_bytes, captcha_error = await self.fetch_captcha(fid)
-        
-        if not has_captcha or captcha_bytes is None:
-            if captcha_error == "NOT_LOGIN":
-                return RedemptionResponse(
-                    success=False,
-                    result=RedemptionResult.NOT_LOGIN,
-                    message="CAPTCHA requires login. Configure EXTERNAL_PROVIDER_LOGIN_TOKEN"
-                )
-            return RedemptionResponse(
-                success=False,
-                result=RedemptionResult.CAPTCHA_ERROR,
-                message=f"CAPTCHA fetch failed: {captcha_error}"
-            )
-        
-        # Step 3: Solve CAPTCHA
-        captcha_solution = self.solve_captcha(captcha_bytes)
-        if captcha_solution is None:
-            return RedemptionResponse(
-                success=False,
-                result=RedemptionResult.CAPTCHA_ERROR,
-                message="OCR failed to solve CAPTCHA. Install ddddocr."
-            )
-        
-        # Step 4: Submit redemption
-        await self._wait_for_rate_limit(1)
-        
-        now = int(time.time() * 1000)
-        params = {
-            "captcha_code": captcha_solution,
-            "cdk": code,
-            "fid": fid,
-            "time": now
-        }
-        sign = self._generate_sign(params)
-        
-        for attempt in range(self.max_retries):
+        for _ in range(self.MAX_RETRIES):
             try:
-                async with self.session.post(
-                    f"{self.API1_URL}/api/gift_code",
-                    headers=self._get_headers(),
-                    data={
-                        "cdk": code,
-                        "fid": fid,
-                        "time": now,
-                        "captcha_code": captcha_solution,
-                        "sign": sign
-                    },
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as resp:
-                    try:
-                        result = await resp.json()
-                    except:
-                        return RedemptionResponse(
-                            success=False,
-                            result=RedemptionResult.ERROR,
-                            message="Invalid API response"
-                        )
+                async with self._session.post(self.API_REDEEM, headers=self._hdrs(self.API_BASE),
+                    data={"cdk": code, "fid": fid, "time": now, "captcha_code": captcha, "sign": sign},
+                    timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    try: res = await r.json()
+                    except: return RedeemResult(RedemptionStatus.ERROR, "Invalid response", pinfo)
                     
-                    err_code = result.get("err_code")
-                    
-                    # Map error codes (from whiteout-project/bot)
-                    status_map = {
-                        20000: (RedemptionResult.SUCCESS, "Successfully claimed", True),
-                        40008: (RedemptionResult.ALREADY_CLAIMED, "Already claimed by this player", False),
-                        40014: (RedemptionResult.CODE_NOT_EXIST, "Gift code does not exist", False),
-                        40007: (RedemptionResult.CODE_EXPIRED, "Gift code has expired", False),
-                        40005: (RedemptionResult.CODE_FULLY_CLAIMED, "Gift code fully claimed", False),
-                        40103: (RedemptionResult.CAPTCHA_ERROR, "CAPTCHA verification failed", False),
-                        40009: (RedemptionResult.NOT_LOGIN, "NOT LOGIN - requires authentication", False),
-                    }
-                    
-                    if err_code in status_map:
-                        result_enum, message, success = status_map[err_code]
-                        return RedemptionResponse(
-                            success=success,
-                            result=result_enum,
-                            message=message,
-                            player_data=player_info.__dict__ if player_info else None
-                        )
-                    else:
-                        return RedemptionResponse(
-                            success=False,
-                            result=RedemptionResult.UNKNOWN,
-                            message=f"Unknown error code: {err_code}"
-                        )
-                        
-            except asyncio.TimeoutError:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Timeout redeeming code, retry {attempt + 1}/{self.max_retries}")
-                    await asyncio.sleep(self.retry_delay)
-                else:
-                    return RedemptionResponse(
-                        success=False,
-                        result=RedemptionResult.ERROR,
-                        message="Timeout during redemption"
-                    )
-            except Exception as e:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"Error redeeming code: {e}, retry {attempt + 1}/{self.max_retries}")
-                    await asyncio.sleep(self.retry_delay)
-                else:
-                    return RedemptionResponse(
-                        success=False,
-                        result=RedemptionResult.ERROR,
-                        message=f"Network error: {str(e)}"
-                    )
-        
-        return RedemptionResponse(
-            success=False,
-            result=RedemptionResult.ERROR,
-            message="Max retries exceeded"
-        )
-    
-    async def health_check(self) -> Tuple[bool, str]:
-        """Check if the provider is healthy."""
-        try:
-            if not self.session:
-                await self.init_session()
-            
-            async with self.session.get(
-                url=f"{self.API1_URL}/",
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                if resp.status < 500:
-                    return True, "API endpoint reachable"
-                else:
-                    return False, f"API returned status {resp.status}"
-                    
-        except Exception as e:
-            return False, f"Cannot reach API: {str(e)}"
-    
-    @property
-    def has_ocr(self) -> bool:
-        """Check if OCR is available."""
-        return self._ocr_available
-    
-    @property
-    def status(self) -> str:
-        """Get current provider status."""
-        if self.is_fully_configured():
-            return f"Enabled ({self.provider_name})"
-        elif self.is_configured():
-            return f"Partial ({self.provider_name})"
-        else:
-            return "Locked - Missing credentials"
+                    err_code = res.get("err_code"); msg = res.get("msg", "")
+                    m = {20000: (RedemptionStatus.SUCCESS, "Claimed"), 40008: (RedemptionStatus.RECEIVED, "Already claimed"),
+                        40014: (RedemptionStatus.CDK_NOT_FOUND, "Code not found"), 40007: (RedemptionStatus.TIME_ERROR, "Expired"),
+                        40005: (RedemptionStatus.USAGE_LIMIT, "Fully claimed"), 40009: (RedemptionStatus.NOT_LOGIN, "NOT LOGIN"),
+                        40103: (RedemptionStatus.CAPTCHA_INVALID, "CAPTCHA invalid")}
+                    if err_code in m: s, t = m[err_code]; return RedeemResult(s, t, pinfo, res)
+                    if msg == "success": return RedeemResult(RedemptionStatus.SUCCESS, "Claimed", pinfo, res)
+                    return RedeemResult(RedemptionStatus.UNKNOWN_API_RESPONSE, f"err={err_code}", pinfo, res)
+            except asyncio.TimeoutError: await asyncio.sleep(self.RETRY_DELAY)
+            except: await asyncio.sleep(self.RETRY_DELAY)
+        return RedeemResult(RedemptionStatus.ERROR, "Max retries", pinfo)
 
+    @property
+    def has_ocr(self): return self._ocr_ok
+    def info(self): return {"name": self.provider_name, "enabled": self._enabled, "configured": self.is_configured(),
+        "ocr": self._ocr_ok, "status": self.get_status(), "test": self._test_result}
 
-# Global instance
 whiteout_project_provider = WhiteoutProjectProvider()
