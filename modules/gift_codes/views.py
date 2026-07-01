@@ -134,14 +134,61 @@ class AllianceRedeemModal(ui.Modal):
         self.add_item(self.code_input)
 
 
+async def add_gift_code_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Add gift code callback."""
+    embed = discord.Embed(
+        title="🎁 إضافة كود جديد",
+        description="أدخل الكود والوصف.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def redeem_single_code_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Redeem single code callback."""
+    embed = discord.Embed(
+        title="🎁 استرداد كود فردي",
+        description="أدخل الكود للاسترداد.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def batch_redeem_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Batch redeem callback."""
+    embed = discord.Embed(
+        title="📦 استرداد دفعي",
+        description="أدخل الأكواد للاسترداد الدفعي.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def redeem_alliance_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Redeem alliance callback."""
+    embed = discord.Embed(
+        title="🏰 استرداد للتحالف",
+        description="اختر التحالف.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def auto_redeem_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Auto redeem settings callback."""
+    embed = discord.Embed(
+        title="⚙️ الإعدادات التلقائية",
+        description="إعدادات الاسترداد التلقائي.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-
+async def gift_report_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Gift codes report callback."""
+    embed = discord.Embed(
+        title="📊 تقرير الأكواد",
+        description="لا توجد بيانات بعد.",
+        color=0x2ecc71
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)

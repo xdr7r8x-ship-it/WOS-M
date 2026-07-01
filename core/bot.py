@@ -333,7 +333,9 @@ class WOSMBot(discord.Client):
     
     # Navigation handlers
     async def _handle_back(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        """Navigate back to previous page or module dashboard."""
+        from modules.dashboard.views import dashboard_callback
+        await dashboard_callback(self, interaction)
     
     async def _handle_home(self, interaction: discord.Interaction):
         from modules.dashboard.views import dashboard_callback

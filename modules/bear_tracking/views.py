@@ -82,7 +82,68 @@ class BearTrackingView(BaseView):
         ))
 
 
+async def bear_tracking_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Main bear tracking callback."""
+    view = BearTrackingView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def bear_add_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Add bear hunt callback."""
+    embed = discord.Embed(
+        title="🐻 إضافة صيد دب جديد",
+        description="الرجاء إدخال بيانات الصيد:\n\n📝 الاسم:\n💰 التعويض:\n📅 التاريخ:",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def bear_damage_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Bear damage record callback."""
+    embed = discord.Embed(
+        title="📝 تسجيل أضرار الدب",
+        description="سجل الأضرار فارغ حالياً.",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def bear_leaderboard_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Bear leaderboard callback."""
+    embed = discord.Embed(
+        title="🏆 قائمة المتصدرين",
+        description="لا توجد بيانات بعد.",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def bear_report_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Bear report callback."""
+    embed = discord.Embed(
+        title="📊 تقرير الدببة",
+        description="لا توجد بيانات بعد.",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def bear_ocr_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Bear OCR import callback."""
+    embed = discord.Embed(
+        title="📷 استيراد عبر OCR",
+        description="أرسل صورة لالتقاط بيانات الدببة تلقائياً.",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def bear_archive_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Bear archive callback."""
+    embed = discord.Embed(
+        title="📦 أرشيف النتائج",
+        description="لا توجد نتائج محفوظة.",
+        color=0x8B4513
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)

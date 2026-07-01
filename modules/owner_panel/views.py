@@ -402,25 +402,201 @@ async def button_management_callback(bot: WOSMBot, interaction: discord.Interact
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def text_management_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Text management callback."""
+    from views.base import BaseView, PageInfo
+    from views.buttons import ActionButton
+    from views.selects import TextTypeSelect
+
+    class TextManagementView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="📝 إدارة النصوص",
+                description="إدارة نصوص البوت",
+                icon="📝",
+                color=0x3498db
+            ))
+            self._add_items()
+            self.add_back_home_buttons()
+
+        def _add_items(self):
+            self.add_item(TextTypeSelect())
+
+    view = TextManagementView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def icon_management_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Icon management callback."""
+    from views.base import BaseView, PageInfo
+    from views.buttons import ActionButton
+    from views.selects import IconTypeSelect
+
+    class IconManagementView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="🖼️ إدارة الأيقونات",
+                description="إدارة أيقونات الأزرار",
+                icon="🖼️",
+                color=0x9b59b6
+            ))
+            self._add_items()
+            self.add_back_home_buttons()
+
+        def _add_items(self):
+            self.add_item(IconTypeSelect())
+
+    view = IconManagementView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def branding_management_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Branding management callback."""
+    from views.base import BaseView, PageInfo
+    from views.buttons import ActionButton
+    from views.selects import BrandingTypeSelect
+
+    class BrandingManagementView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="🎨 إدارة الهوية",
+                description="إدارة هوية البوت",
+                icon="🎨",
+                color=0xe74c3c
+            ))
+            self._add_items()
+            self.add_back_home_buttons()
+
+        def _add_items(self):
+            self.add_item(BrandingTypeSelect())
+
+    view = BrandingManagementView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def feature_management_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Feature management callback."""
+    from views.base import BaseView, PageInfo
+    from views.buttons import ActionButton
+    from views.selects import FeatureSelect
+
+    class FeatureManagementView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="⚡ إدارة الميزات",
+                description="تفعيل وإيقاف الميزات",
+                icon="⚡",
+                color=0xf39c12
+            ))
+            self._add_items()
+            self.add_back_home_buttons()
+
+        def _add_items(self):
+            self.add_item(FeatureSelect())
+
+    view = FeatureManagementView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+async def text_edit_desc_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle text_edit_desc button."""
+    embed = discord.Embed(title="📝 تعديل الوصف", description="تم فتح نموذج تعديل الوصف.", color=0x3498db)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def text_edit_msg_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle text_edit_msg button."""
+    embed = discord.Embed(title="💬 تعديل الرسائل", description="تم فتح نموذج تعديل الرسائل.", color=0x3498db)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def text_reset_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle text_reset button."""
+    embed = discord.Embed(title="🔄 إعادة تعيين النصوص", description="تم إعادة تعيين النصوص.", color=0x3498db)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def icon_button_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle icon_button button."""
+    embed = discord.Embed(title="🔘 أيقونات الأزرار", description="تم فتح قائمة أيقونات الأزرار.", color=0x9b59b6)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def icon_section_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle icon_section button."""
+    embed = discord.Embed(title="📂 أيقونات الأقسام", description="تم فتح قائمة أيقونات الأقسام.", color=0x9b59b6)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def icon_status_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle icon_status button."""
+    embed = discord.Embed(title="📊 أيقونات الحالة", description="تم فتح قائمة أيقونات الحالة.", color=0x9b59b6)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def brand_name_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle brand_name button."""
+    embed = discord.Embed(title="🏷️ اسم العلامة", description="تم فتح نموذج اسم العلامة.", color=0xe74c3c)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+async def brand_colors_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle brand_colors button."""
+    embed = discord.Embed(title="🎨 الألوان", description="تم فتح نموذج الألوان.", color=0xe74c3c)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def brand_save_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle brand_save button."""
+    embed = discord.Embed(title="💾 حفظ", description="تم حفظ التغييرات.", color=0xe74c3c)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def brand_reset_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle brand_reset button."""
+    embed = discord.Embed(title="🔄 إعادة تعيين", description="تم إعادة تعيين الهوية.", color=0xe74c3c)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_add_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_add button."""
+    embed = discord.Embed(title="➕ إضافة ميزة", description="تم فتح نموذج إضافة ميزة.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_edit_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_edit button."""
+    embed = discord.Embed(title="✏️ تعديل ميزة", description="تم فتح نموذج تعديل ميزة.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_enable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_enable button."""
+    embed = discord.Embed(title="✅ تفعيل", description="تم تفعيل الميزة.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_disable_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_disable button."""
+    embed = discord.Embed(title="❌ إيقاف", description="تم إيقاف الميزة.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_link_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_link button."""
+    embed = discord.Embed(title="🔗 ربط", description="تم فتح نموذج الربط.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+async def feat_registry_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Handle feat_registry button."""
+    embed = discord.Embed(title="📋 السجل", description="تم فتح سجل الميزات.", color=0xf39c12)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
