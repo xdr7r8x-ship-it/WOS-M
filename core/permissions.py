@@ -14,9 +14,10 @@ class PermissionLevel(Enum):
     OWNER = 1
     GLOBAL_ADMIN = 2
     SERVER_ADMIN = 3
+    ADMIN = 3  # Alias for SERVER_ADMIN
     ALLIANCE_ADMIN = 4
     MEMBER = 5
-    
+
     @classmethod
     def from_string(cls, value: str) -> "PermissionLevel":
         """Convert string to PermissionLevel."""
@@ -24,11 +25,12 @@ class PermissionLevel(Enum):
             "owner": cls.OWNER,
             "global_admin": cls.GLOBAL_ADMIN,
             "server_admin": cls.SERVER_ADMIN,
+            "admin": cls.SERVER_ADMIN,
             "alliance_admin": cls.ALLIANCE_ADMIN,
             "member": cls.MEMBER,
         }
         return mapping.get(value.lower(), cls.MEMBER)
-    
+
     def __ge__(self, other: "PermissionLevel") -> bool:
         """Check if permission level is >= another."""
         return self.value <= other.value

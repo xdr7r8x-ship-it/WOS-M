@@ -16,8 +16,126 @@ from core.process_queue import ProcessQueue
 from core.audit_log import audit_log, AuditCategory
 from core.feature_registry import FeatureRegistry, feature_registry
 
+import importlib
+import inspect
+
+from core.interaction_registry import INTERACTION_REGISTRY
+
 logger = logging.getLogger(__name__)
 
+def _registry_permission_to_core(spec):
+    """Convert registry permission to core PermissionLevel."""
+    from core.permissions import PermissionLevel as CorePL
+    if spec is None:
+        return CorePL.MEMBER
+    try:
+        return CorePL.from_string(spec.required_permission.value)
+    except Exception:
+        return CorePL.MEMBER
+
+def resolve_registered_handler(bot, spec):
+    """Resolve handler from registry spec."""
+    if spec is None:
+        return None
+    
+    if spec.module in {"navigation", "system"}:
+        return None
+    
+    # Check if handler exists on bot
+    if hasattr(bot, spec.handler_name):
+        return getattr(bot, spec.handler_name)
+    
+    # Handle dash_* custom_ids - convert to _handle_* pattern
+    dash_to_handle = spec.custom_id.replace("dash_", "_handle_")
+    if hasattr(bot, dash_to_handle):
+        return getattr(bot, dash_to_handle)
+    
+    # Try to import from module
+    try:
+        module = importlib.import_module(f"modules.{spec.module}.views")
+    except Exception:
+        return None
+    
+    # Try multiple handler name patterns
+    candidates = [
+        spec.handler_name,
+        f"{spec.custom_id}_callback",
+        f"nav_{spec.custom_id.split('_', 1)[-1]}_callback",
+    ]
+    for name in candidates:
+        handler = getattr(module, name, None)
+        if callable(handler):
+            return handler
+    
+    return None
+
+async def dispatch_registered_interaction(bot, interaction):
+    """Dispatch interaction through registry."""
+    custom_id = interaction.data.get("custom_id", "")
+    spec = INTERACTION_REGISTRY.get(custom_id)
+    
+    if spec is None:
+        # Fallback to old system
+        if custom_id in bot._button_callbacks:
+            callback = bot._button_callbacks[custom_id]
+            await callback(interaction)
+            return
+        try:
+            await interaction.response.send_message(
+                "تعذر تنفيذ هذا الإجراء. تم تسجيل الخطأ للمراجعة.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
+        return
+    
+    guard = PermissionGuard(bot)
+    user_id = str(interaction.user.id)
+    required_level = _registry_permission_to_core(spec)
+    
+    # Check owner-only
+    if spec.owner_only and not await guard.is_owner(user_id):
+        try:
+            await interaction.response.send_message(
+                "ليس لديك صلاحية لتنفيذ هذا الإجراء.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
+        return
+    
+    # Check permission
+    guild_id = str(interaction.guild_id) if interaction.guild_id else None
+    if not await guard.has_permission(user_id, required_level, guild_id=guild_id):
+        try:
+            await interaction.response.send_message(
+                "ليس لديك صلاحية لتنفيذ هذا الإجراء.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
+        return
+    
+    # Resolve and call handler
+    handler = resolve_registered_handler(bot, spec)
+    if handler is None:
+        # Fallback to old system
+        if custom_id in bot._button_callbacks:
+            callback = bot._button_callbacks[custom_id]
+            await callback(interaction)
+            return
+        try:
+            await interaction.response.send_message(
+                "تعذر تنفيذ هذا الإجراء. تم تسجيل الخطأ للمراجعة.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
+        return
+    
+    result = handler(bot, interaction) if inspect.isfunction(handler) else handler(interaction)
+    if inspect.isawaitable(result):
+        await result
 
 class WOSMBot(discord.Client):
     """Main WOS-M bot class."""
@@ -300,37 +418,10 @@ class WOSMBot(discord.Client):
             await dashboard_callback(self, interaction)
     
     async def on_interaction(self, interaction: discord.Interaction):
-        """Handle all interactions."""
+        """Handle all interactions using registry as primary path."""
         if interaction.type == discord.InteractionType.component:
-            custom_id = interaction.data.get("custom_id", "")
-            
-            # Handle button callbacks
-            if custom_id in self._button_callbacks:
-                callback = self._button_callbacks[custom_id]
-                await callback(interaction)
-            
-            # Handle select callbacks
-            elif "select" in custom_id:
-                for key, callback in self._select_callbacks.items():
-                    if key in custom_id:
-                        await callback(interaction)
-                        break
-            
-            # Handle dynamic routing
-            elif custom_id in self._dynamic_router:
-                module_name = self._dynamic_router[custom_id]
-                await self._route_to_module(interaction, module_name, custom_id)
-            
-            else:
-                logger.warning(f"Unhandled custom_id: {custom_id}")
-                try:
-                    await interaction.response.send_message(
-                        "⚠️ تعذر تنفيذ هذا الإجراء. يرجى المحاولة مرة أخرى.",
-                        ephemeral=True
-                    )
-                except:
-                    pass
-    
+            await dispatch_registered_interaction(self, interaction)
+
     # Navigation handlers
     async def _handle_back(self, interaction: discord.Interaction):
         """Navigate back to previous page or module dashboard."""

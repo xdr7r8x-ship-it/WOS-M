@@ -11,16 +11,33 @@ from core.i18n import i18n
 from core.database import db
 from core.permissions import PermissionLevel, PermissionGuard
 from core.audit_log import audit_log, AuditCategory
+from core.interaction_registry import INTERACTION_REGISTRY
 from views.base import BaseView, PageInfo
 from views.buttons import DashboardButton
 from views.selects import LanguageSelect
 
+async def _get_user_role(bot: WOSMBot, interaction: discord.Interaction) -> str:
+    """Get user role based on permissions."""
+    guard = PermissionGuard(bot)
+    user_id = str(interaction.user.id)
+    
+    if await guard.is_owner(user_id):
+        return "owner"
+    
+    guild_id = str(interaction.guild_id) if interaction.guild_id else None
+    level = await guard.get_user_level(user_id, guild_id=guild_id)
+    
+    if level and level <= PermissionLevel.SERVER_ADMIN:
+        return "admin"
+    
+    return "member"
 
 class DashboardView(BaseView):
     """Main dashboard view."""
-    
-    def __init__(self, bot: WOSMBot, user_id: int):
+
+    def __init__(self, bot: WOSMBot, user_id: int, role: str = "member"):
         self.bot = bot
+        self.role = role
         super().__init__(
             user_id=user_id,
             page_info=PageInfo(
@@ -30,57 +47,62 @@ class DashboardView(BaseView):
                 color=0x3498db
             )
         )
-        
+
         self._build_buttons()
-    
+
     def _build_buttons(self):
-        """Build dashboard buttons based on permissions."""
-        buttons = [
-            ("alliances", i18n.get("dashboard.alliances"), "🏰", 0, discord.ButtonStyle.primary),
-            ("players", i18n.get("dashboard.players"), "👥", 0, discord.ButtonStyle.primary),
-            ("gift_codes", i18n.get("dashboard.auto_gift"), "🎁", 0, discord.ButtonStyle.success),
-            ("events", i18n.get("dashboard.events"), "📅", 1, discord.ButtonStyle.primary),
-            ("attendance", i18n.get("dashboard.attendance"), "✅", 1, discord.ButtonStyle.primary),
-            ("bear_tracking", i18n.get("dashboard.bear_tracking"), "🐻", 1, discord.ButtonStyle.primary),
-            ("ministers", i18n.get("dashboard.ministers"), "👔", 1, discord.ButtonStyle.primary),
-            ("notifications", i18n.get("dashboard.notifications"), "🔔", 2, discord.ButtonStyle.primary),
-            ("themes", i18n.get("dashboard.themes"), "🎨", 2, discord.ButtonStyle.secondary),
-            ("permissions", i18n.get("dashboard.permissions"), "🔐", 2, discord.ButtonStyle.secondary),
-            ("maintenance", i18n.get("dashboard.maintenance"), "🔧", 2, discord.ButtonStyle.secondary),
-            ("owner_panel", i18n.get("dashboard.owner_panel"), "👑", 3, discord.ButtonStyle.danger),
-            ("language", i18n.get("dashboard.language"), "🌐", 3, discord.ButtonStyle.secondary),
-            ("settings", i18n.get("dashboard.settings"), "⚙️", 3, discord.ButtonStyle.secondary),
+        """Build dashboard buttons based on registry visibility."""
+        from core.feature_registry import feature_registry
+        
+        ordered_ids = [
+            "dash_alliances",
+            "dash_players",
+            "dash_gift_codes",
+            "dash_events",
+            "dash_attendance",
+            "dash_bear_tracking",
+            "dash_ministers",
+            "dash_notifications",
+            "dash_themes",
+            "dash_permissions",
+            "dash_maintenance",
+            "dash_owner_panel",
+            "dash_language",
+            "dash_settings",
         ]
         
-        for btn_id, label, emoji, row, style in buttons:
-            # Check if feature is enabled
-            from core.feature_registry import feature_registry
-            if feature_registry and not feature_registry.is_feature_enabled(btn_id):
+        row_map = {
+            "dash_alliances": 0, "dash_players": 0, "dash_gift_codes": 0,
+            "dash_events": 1, "dash_attendance": 1, "dash_bear_tracking": 1,
+            "dash_ministers": 1, "dash_notifications": 2, "dash_themes": 2,
+            "dash_permissions": 2, "dash_maintenance": 2, "dash_owner_panel": 3,
+            "dash_language": 3, "dash_settings": 3,
+        }
+
+        for custom_id in ordered_ids:
+            spec = INTERACTION_REGISTRY.get(custom_id)
+            if not spec or not spec.production_visible:
+                continue
+            if self.role not in spec.visible_to:
                 continue
             
-            # Check permission
-            guard = PermissionGuard(self.bot)
-            required_level = PermissionLevel.from_string(
-                feature_registry.get_feature(btn_id).required_permission 
-                if feature_registry else "member"
-            )
-            
-            # Skip if user doesn't have permission
-            if btn_id != "owner_panel" and not guard.has_permission(str(self.user_id), required_level):
+            feature_name = custom_id.replace("dash_", "")
+            if feature_registry and not feature_registry.is_feature_enabled(feature_name):
                 continue
+
+            row = row_map.get(custom_id, 0)
             
             self.add_item(DashboardButton(
-                label=label,
-                custom_id=f"dash_{btn_id}",
-                style=style,
-                emoji=emoji,
+                label=i18n.get(spec.label_key),
+                custom_id=spec.custom_id,
+                style=discord.ButtonStyle.primary,
+                emoji=spec.emoji,
                 row=row
             ))
 
-
 class LanguageView(BaseView):
     """Language selection view."""
-    
+
     def __init__(self, bot: WOSMBot, user_id: int):
         self.bot = bot
         super().__init__(
@@ -92,116 +114,94 @@ class LanguageView(BaseView):
                 color=0x1abc9c
             )
         )
-        
+
         self.add_item(LanguageSelect(i18n.current_locale))
         self.add_back_home_buttons()
 
-
 async def dashboard_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for dashboard command."""
-    view = DashboardView(bot, interaction.user.id)
-    
-    embed = view.create_embed()
-    
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    role = await _get_user_role(bot, interaction)
+    view = DashboardView(bot, interaction.user.id, role)
 
+    embed = view.create_embed()
+
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 async def language_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for language selection."""
     view = LanguageView(bot, interaction.user.id)
-    
-    embed = view.create_embed()
-    
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+    embed = view.create_embed()
+
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # Navigation callbacks
 async def nav_back_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Navigate back."""
-    await interaction.response.defer()
-    # Implementation depends on navigation stack
-
-
-async def nav_home_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to home (dashboard)."""
-    await interaction.response.defer()
     await dashboard_callback(bot, interaction)
 
+async def nav_home_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Navigate home."""
+    await dashboard_callback(bot, interaction)
 
-# Feature navigation callbacks
-async def alliances_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to alliances."""
-    from modules.alliances.views import alliances_callback as cb
-    await cb(bot, interaction)
+async def nav_refresh_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Refresh dashboard."""
+    await dashboard_callback(bot, interaction)
 
-
-async def players_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to players."""
-    from modules.players.views import players_callback as cb
-    await cb(bot, interaction)
-
-
-async def gift_codes_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to gift codes."""
-    from modules.gift_codes.views import gift_codes_callback as cb
-    await cb(bot, interaction)
-
-
-async def events_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to events."""
-    from modules.events.views import events_callback as cb
-    await cb(bot, interaction)
-
-
-async def attendance_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to attendance."""
-    from modules.attendance.views import attendance_callback as cb
-    await cb(bot, interaction)
-
-
-async def bear_tracking_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to bear tracking."""
-    from modules.bear_tracking.views import bear_tracking_callback as cb
-    await cb(bot, interaction)
-
-
-async def ministers_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to ministers."""
-    from modules.ministers.views import ministers_callback as cb
-    await cb(bot, interaction)
-
-
-async def notifications_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to notifications."""
-    from modules.notifications.views import notifications_callback as cb
-    await cb(bot, interaction)
-
-
-async def themes_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to themes."""
-    from modules.themes.views import themes_callback as cb
-    await cb(bot, interaction)
-
-
-async def permissions_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to permissions."""
-    from modules.maintenance.views import permissions_callback as cb
-    await cb(bot, interaction)
-
-
-async def maintenance_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to maintenance."""
-    from modules.maintenance.views import maintenance_callback as cb
-    await cb(bot, interaction)
-
-
-async def owner_panel_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to owner panel."""
-    from modules.owner_panel.views import owner_panel_callback as cb
-    await cb(bot, interaction)
-
+async def nav_close_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Close message."""
+    try:
+        await interaction.message.delete()
+    except Exception:
+        if not interaction.response.is_done():
+            await interaction.response.send_message("تم إغلاق النافذة.", ephemeral=True)
 
 async def settings_callback(bot: WOSMBot, interaction: discord.Interaction):
-    """Navigate to settings."""
-    from modules.maintenance.views import settings_callback as cb
-    await cb(bot, interaction)
+    """Settings callback."""
+    from views.base import BaseView, PageInfo
+    from views.buttons import ActionButton
+    
+    class SettingsView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="⚙️ الإعدادات",
+                description="إعدادات البوت",
+                icon="⚙️",
+                color=0x3498db
+            ))
+            self._add_buttons()
+            self.add_back_home_buttons()
+    view = SettingsView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+async def settings_language_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Settings language callback."""
+    from views.base import BaseView, PageInfo
+    from views.selects import LanguageSelect
+    
+    class LanguageSettingsView(BaseView):
+        def __init__(self, bot, user_id):
+            self.bot = bot
+            super().__init__(user_id=user_id, page_info=PageInfo(
+                title="🌐 إعدادات اللغة",
+                description="اختر لغة البوت",
+                icon="🌐",
+                color=0x3498db
+            ))
+            self.add_item(LanguageSelect(i18n.current_locale))
+            self.add_back_home_buttons()
+    
+    view = LanguageSettingsView(bot, interaction.user.id)
+    embed = view.create_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+async def settings_timezone_callback(bot: WOSMBot, interaction: discord.Interaction):
+    """Settings timezone callback."""
+    embed = discord.Embed(
+        title="🕐 إعدادات المنطقة الزمنية",
+        description="اختر منطقتك الزمنية.",
+        color=0x3498db
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)

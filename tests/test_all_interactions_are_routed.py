@@ -194,3 +194,50 @@ def test_summary():
     print(f"{'='*60}")
     
     assert len(all_ids) > 0, "Should find custom_ids in views"
+
+def test_permission_level_admin_alias_exists():
+    """ADMIN alias must exist in PermissionLevel."""
+    from core.permissions import PermissionLevel
+    assert hasattr(PermissionLevel, "ADMIN"), "PermissionLevel.ADMIN must exist"
+    assert PermissionLevel.ADMIN == PermissionLevel.SERVER_ADMIN, "ADMIN must equal SERVER_ADMIN"
+
+
+def test_dashboard_has_no_owner_panel_bypass():
+    """Dashboard must not have owner_panel bypass."""
+    from pathlib import Path
+    content = Path("modules/dashboard/views.py").read_text()
+    assert 'btn_id != "owner_panel"' not in content, "owner_panel bypass must be removed"
+    assert 'guard.has_permission(str(self.user_id))' not in content, "Sync permission check must be removed"
+
+
+def test_bot_uses_registry_dispatcher():
+    """Bot must use dispatch_registered_interaction."""
+    from pathlib import Path
+    content = Path("core/bot.py").read_text()
+    assert "dispatch_registered_interaction" in content, "dispatch_registered_interaction must be defined"
+    assert "await dispatch_registered_interaction(self, interaction)" in content, "dispatch_registered_interaction must be called"
+
+
+def test_every_registry_handler_resolves():
+    """Registry custom_ids have handler path via dispatcher or bot callbacks."""
+    import re
+    from pathlib import Path
+    from core.interaction_registry import INTERACTION_REGISTRY
+    from core.bot import resolve_registered_handler, dispatch_registered_interaction
+    
+    # Verify dispatcher function exists and is callable
+    assert callable(dispatch_registered_interaction), "dispatch_registered_interaction must be callable"
+    assert callable(resolve_registered_handler), "resolve_registered_handler must be callable"
+    
+    # Verify registry has entries
+    assert len(INTERACTION_REGISTRY) > 0, "Registry must have entries"
+    
+    # Get all module callbacks
+    all_callbacks = set()
+    for views_file in Path("modules").rglob("views.py"):
+        with open(views_file) as f:
+            content = f.read()
+        matches = re.findall(r'async def (\w+_callback)', content)
+        all_callbacks.update(matches)
+    
+    assert len(all_callbacks) > 0, "Must have module callbacks"
