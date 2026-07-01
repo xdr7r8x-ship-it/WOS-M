@@ -261,6 +261,51 @@ def check_system():
     else:
         print("   Real Redemption Route: NOT WIRED")
     
+    # Check ONNX Captcha Solver
+    print("\n🔮 Checking ONNX Captcha Solver...")
+    onnx_solver_file = Path(__file__).parent / "integrations" / "captcha" / "onnx_captcha_solver.py"
+    onnx_lifecycle_file = Path(__file__).parent / "integrations" / "captcha" / "onnx_lifecycle.py"
+    model_file = Path(__file__).parent / "models" / "captcha_model.onnx"
+    metadata_file = Path(__file__).parent / "models" / "captcha_model_metadata.json"
+    
+    if onnx_solver_file.exists():
+        print("PASS: ONNX captcha solver installed")
+    else:
+        issues.append("ONNX captcha solver not found")
+    
+    if model_file.exists():
+        print(f"PASS: captcha_model.onnx exists ({model_file.stat().st_size} bytes)")
+    else:
+        issues.append("captcha_model.onnx missing")
+    
+    if metadata_file.exists():
+        print("PASS: captcha_model_metadata.json exists")
+        # Validate metadata
+        try:
+            import json
+            with open(metadata_file) as f:
+                meta = json.load(f)
+            if "input_shape" in meta and "normalization" in meta:
+                print("PASS: ONNX metadata valid")
+            else:
+                issues.append("ONNX metadata invalid")
+        except:
+            issues.append("Cannot read ONNX metadata")
+    else:
+        issues.append("captcha_model_metadata.json missing")
+    
+    # Check if provider uses ONNX
+    provider_file = Path(__file__).parent / "integrations" / "whiteout_project_provider.py"
+    if provider_file.exists():
+        provider_content = open(provider_file).read()
+        if "OnnxCaptchaSolver" in provider_content:
+            print("PASS: WhiteoutProject provider uses ONNX solver")
+        else:
+            issues.append("Provider does not use ONNX solver")
+        
+        if "ddddocr" in provider_content:
+            print("PASS: ddddocr is fallback only")
+    
     # Check for proprietary secrets in code
     print("\n🔒 Checking for proprietary secrets...")
     forbidden_patterns = ["sk_live_", "pk_live_", "api_key_", "secret_key_", "ghp_", "gho_", "ghs_"]
