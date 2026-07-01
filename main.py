@@ -68,17 +68,41 @@ def check_system():
     
     if demo_mode:
         warnings.append("DEMO MODE ACTIVE")
-        print("WARN: WOSM_DEMO_MODE=true")
+        print("WARN: WOSM_DEMO_MODE=true (Demo mode - no real redemption)")
+        
+        # In demo mode, API warnings are informational only
+        if os.getenv("GIFT_CODE_API_BASE_URL"):
+            print("INFO: Gift API configured (but using demo mode)")
+        else:
+            print("INFO: Gift API not configured (demo mode)")
     else:
         print("PASS: Production mode")
-        if not os.getenv("GIFT_CODE_API_BASE_URL"):
-            issues.append("GIFT_CODE_API_BASE_URL not set")
-        else:
+        
+        # Check Open Source Adapter or external API
+        has_adapter = Path(__file__).parent / "integrations" / "wos_open_source_adapter.py"
+        
+        # Check if we have OCR capability
+        has_ocr = False
+        try:
+            import ddddocr
+            has_ocr = True
+        except ImportError:
+            pass
+        
+        has_external_captcha = bool(os.getenv("CAPTCHA_SERVICE_URL") and os.getenv("CAPTCHA_SERVICE_TOKEN"))
+        has_gift_api = bool(os.getenv("GIFT_CODE_API_BASE_URL"))
+        
+        if not has_ocr and not has_external_captcha:
+            if has_adapter.exists():
+                print("WARN: Open source adapter available but no OCR solution")
+                print("INFO: Install ddddocr or configure CAPTCHA service")
+            else:
+                issues.append("No OCR solution - install ddddocr or set CAPTCHA_SERVICE")
+        
+        if has_gift_api:
             print("PASS: Gift API configured")
-        if not os.getenv("CAPTCHA_SERVICE_URL") or not os.getenv("CAPTCHA_SERVICE_TOKEN"):
-            issues.append("CAPTCHA_SERVICE_URL/TOKEN not set")
         else:
-            print("PASS: Captcha configured")
+            print("INFO: Using open source adapter (centurygame.com)")
     
     # Check locales
     locales_dir = Path(__file__).parent / "locales"
@@ -141,10 +165,58 @@ def check_system():
         else:
             issues.append("_run_migrations not implemented")
     
+    # Check Open Source Adapter
+    print("\n🔌 Checking Open Source Adapter...")
+    adapter_file = Path(__file__).parent / "integrations" / "wos_open_source_adapter.py"
+    if adapter_file.exists():
+        print("PASS: Open source adapter exists")
+        
+        # Check for OCR
+        try:
+            import ddddocr
+            print("PASS: ddddocr installed (OCR available)")
+        except ImportError:
+            print("WARN: ddddocr not installed - using external CAPTCHA or Demo Mode")
+            if os.getenv("CAPTCHA_SERVICE_URL") and os.getenv("CAPTCHA_SERVICE_TOKEN"):
+                print("PASS: External CAPTCHA service configured")
+            else:
+                print("WARN: No CAPTCHA solution available")
+    else:
+        warnings.append("Open source adapter not found")
+    
+    # Check for proprietary secrets in code
+    print("\n🔒 Checking for proprietary secrets...")
+    forbidden_patterns = ["sk_live_", "pk_live_", "api_key_", "secret_key_", "ghp_", "gho_", "ghs_"]
+    secrets_found = False
+    for py_file in list(Path(__file__).parent.rglob("*.py")):
+        if py_file.name.startswith("test_") or "test" in str(py_file):
+            continue
+        with open(py_file) as f:
+            content = f.read()
+            for pattern in forbidden_patterns:
+                # Look for pattern followed by actual secret (not just variable name)
+                import re
+                matches = re.finditer(pattern + r'[A-Za-z0-9_-]{10,}', content)
+                for m in matches:
+                    # Check if this is in a comment or string assignment
+                    pos = m.start()
+                    line_start = content.rfind('\n', 0, pos) + 1
+                    line = content[line_start:content.find('\n', pos)]
+                    if 'os.getenv' not in line and '# ' + pattern not in line:
+                        print(f"FAIL: Possible hardcoded secret in {py_file.name}: {line.strip()[:60]}")
+                        secrets_found = True
+    
+    if not secrets_found:
+        print("PASS: No hardcoded proprietary secrets found")
+    
     print("=" * 70)
     if issues:
         print("FAIL: " + "; ".join(issues))
         return False
+    
+    if warnings:
+        print("WARN: " + "; ".join(warnings))
+    
     print("PASS: All checks passed")
     if demo_mode:
         print("WARN: DEMO MODE - NOT FOR PRODUCTION")

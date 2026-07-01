@@ -37,6 +37,8 @@ class APIConfig:
     """External API configurations."""
     wos_api_base_url: str = ""
     gift_code_api_base_url: str = ""
+    wos_gift_public_endpoint: str = "https://wos-giftcode-api.centurygame.com"
+    wos_player_public_endpoint: str = "https://wos-giftcode-api.centurygame.com"
     captcha_service_url: str = ""
     captcha_service_token: str = ""
     ocr_service_url: str = ""
