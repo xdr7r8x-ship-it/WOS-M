@@ -137,7 +137,12 @@
     "provider_not_configured": "⚠️ No external provider configured",
     "api_auth_required": "🔐 API requires authentication",
     "api_not_login": "NOT LOGIN (Error 40009)",
-    "contact_owner": "Contact the bot owner to configure an authorized provider."
+    "contact_owner": "Contact the bot owner to configure an authorized provider.",
+    "external_provider_enabled": "🔓 Real Redemption: Enabled",
+    "external_provider_locked": "🔒 Real Redemption: Locked - Missing authorized provider credentials",
+    "configure_provider": "🌐 Configure External Provider",
+    "real_redemption_enabled": "✅ Real redemption is available",
+    "contact_provider": "Contact your authorized provider for credentials."
   },
   "events": {
     "title": "📅 Event Management",

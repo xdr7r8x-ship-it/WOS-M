@@ -111,13 +111,18 @@ def check_system():
             
             # Check if external provider is configured
             has_external_provider = bool(os.getenv("EXTERNAL_PROVIDER_API_KEY"))
+            has_login_token = bool(os.getenv("EXTERNAL_PROVIDER_LOGIN_TOKEN"))
+            provider_name = os.getenv("EXTERNAL_PROVIDER_NAME", "Built-in")
+            
             if has_external_provider:
-                provider_name = os.getenv("EXTERNAL_PROVIDER_NAME", "External")
                 print(f"PASS: External provider configured ({provider_name})")
+            elif has_login_token:
+                print(f"PASS: Login token configured (Built-in adapter)")
             else:
-                print("WARN: External provider NOT configured")
-                print("WARN: Real redemption is LOCKED (API requires auth - Error 40009)")
-                print("INFO: Configure EXTERNAL_PROVIDER_API_KEY for real redemption")
+                print("FAIL: Missing authorized provider credentials")
+                print("INFO: Real redemption is LOCKED")
+                print("INFO: Configure EXTERNAL_PROVIDER_API_KEY or EXTERNAL_PROVIDER_LOGIN_TOKEN")
+                issues.append("External provider not configured")
         else:
             issues.append("No Gift API configured")
     

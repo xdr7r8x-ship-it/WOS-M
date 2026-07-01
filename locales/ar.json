@@ -137,7 +137,12 @@
     "provider_not_configured": "⚠️ لم يتم تكوين مزود خارجي",
     "api_auth_required": "🔐 API يتطلب مصادقة",
     "api_not_login": "غير مسجل الدخول (خطأ 40009)",
-    "contact_owner": "تواصل مع مالك البوت لتكوين مزود مصرح."
+    "contact_owner": "تواصل مع مالك البوت لتكوين مزود مصرح.",
+    "external_provider_enabled": "🔓 الاسترداد الحقيقي: مفعّل",
+    "external_provider_locked": "🔒 الاسترداد الحقيقي: مقفل - مفقود بيانات المزود المصرح",
+    "configure_provider": "🌐 تكوين مزود خارجي",
+    "real_redemption_enabled": "✅ الاسترداد الحقيقي متاح",
+    "contact_provider": "تواصل مع مزودك المصرح للحصول على البيانات."
   },
   "events": {
     "title": "📅 إدارة الأحداث",
