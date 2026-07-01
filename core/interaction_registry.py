@@ -93,6 +93,26 @@ INTERACTION_REGISTRY: dict[str, InteractionSpec] = {
         visible_to=("owner", "admin", "member"),
         emoji="🔄"
     ),
+    "nav_prev": InteractionSpec(
+        custom_id="nav_prev",
+        label_key="nav.previous",
+        interaction_type=InteractionType.BUTTON,
+        module="navigation",
+        handler_name="_handle_nav_prev",
+        required_permission=PermissionLevel.MEMBER,
+        visible_to=("owner", "admin", "member"),
+        emoji="◀️"
+    ),
+    "nav_next": InteractionSpec(
+        custom_id="nav_next",
+        label_key="nav.next",
+        interaction_type=InteractionType.BUTTON,
+        module="navigation",
+        handler_name="_handle_nav_next",
+        required_permission=PermissionLevel.MEMBER,
+        visible_to=("owner", "admin", "member"),
+        emoji="▶️"
+    ),
 
     # ========== DASHBOARD ==========
     "dash_alliances": InteractionSpec(

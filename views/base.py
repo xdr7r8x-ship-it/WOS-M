@@ -76,7 +76,7 @@ class BaseView(ui.View):
             ui.Button(
                 label=i18n.get("buttons.back"),
                 style=discord.ButtonStyle.secondary,
-                custom_id="back_btn",
+                custom_id="nav_back",
                 emoji="🔙"
             )
         )
@@ -84,7 +84,7 @@ class BaseView(ui.View):
             ui.Button(
                 label=i18n.get("buttons.home"),
                 style=discord.ButtonStyle.primary,
-                custom_id="home_btn",
+                custom_id="nav_home",
                 emoji="🏠"
             )
         )
@@ -142,7 +142,7 @@ class PaginationView(BaseView):
         prev_button = ui.Button(
             label=i18n.get("buttons.previous"),
             style=discord.ButtonStyle.secondary,
-            custom_id="prev_btn",
+            custom_id="nav_prev",
             emoji="◀️",
             disabled=self._current_page == 0
         )
@@ -151,7 +151,7 @@ class PaginationView(BaseView):
         next_button = ui.Button(
             label=i18n.get("buttons.next"),
             style=discord.ButtonStyle.secondary,
-            custom_id="next_btn",
+            custom_id="nav_next",
             emoji="▶️",
             disabled=self._current_page >= self._total_pages - 1
         )

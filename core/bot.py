@@ -38,12 +38,19 @@ def resolve_registered_handler(bot, spec):
     if spec is None:
         return None
     
-    if spec.module in {"navigation", "system"}:
-        return None
-    
-    # Check if handler exists on bot
+    # Check if handler exists on bot (includes navigation handlers)
     if hasattr(bot, spec.handler_name):
         return getattr(bot, spec.handler_name)
+    
+    # Navigation handlers are on the bot as _handle_*
+    if spec.module == "navigation":
+        nav_handler = f"_handle_{spec.custom_id}"
+        if hasattr(bot, nav_handler):
+            return getattr(bot, nav_handler)
+        return None
+    
+    if spec.module == "system":
+        return None
     
     # Handle dash_* custom_ids - convert to _handle_* pattern
     dash_to_handle = spec.custom_id.replace("dash_", "_handle_")
@@ -438,6 +445,20 @@ class WOSMBot(discord.Client):
         except:
             pass
         await interaction.response.defer()
+
+    async def _handle_nav_prev(self, interaction: discord.Interaction):
+        """Handle previous page navigation."""
+        try:
+            await interaction.response.send_message("الصفحة السابقة.", ephemeral=True)
+        except:
+            pass
+
+    async def _handle_nav_next(self, interaction: discord.Interaction):
+        """Handle next page navigation."""
+        try:
+            await interaction.response.send_message("الصفحة التالية.", ephemeral=True)
+        except:
+            pass
     
     # Module navigation handlers
     async def _handle_alliances(self, interaction: discord.Interaction):

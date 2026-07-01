@@ -241,3 +241,21 @@ def test_every_registry_handler_resolves():
         all_callbacks.update(matches)
     
     assert len(all_callbacks) > 0, "Must have module callbacks"
+
+
+def test_base_view_navigation_ids_are_registered():
+    """Navigation IDs in views/base.py must be in registry."""
+    from pathlib import Path
+    from core.interaction_registry import INTERACTION_REGISTRY
+
+    content = Path("views/base.py").read_text()
+
+    assert "back_btn" not in content, "back_btn must be replaced with nav_back"
+    assert "home_btn" not in content, "home_btn must be replaced with nav_home"
+    assert "prev_btn" not in content, "prev_btn must be replaced with nav_prev"
+    assert "next_btn" not in content, "next_btn must be replaced with nav_next"
+
+    assert "nav_back" in INTERACTION_REGISTRY, "nav_back must be in registry"
+    assert "nav_home" in INTERACTION_REGISTRY, "nav_home must be in registry"
+    assert "nav_prev" in INTERACTION_REGISTRY, "nav_prev must be in registry"
+    assert "nav_next" in INTERACTION_REGISTRY, "nav_next must be in registry"
