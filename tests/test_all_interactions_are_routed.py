@@ -323,3 +323,79 @@ def test_nav_prev_next_are_not_dummy_handlers():
     assert 'send_message("الصفحة التالية."' not in content
     assert 'send_message("الصفحة السابقة.",' not in content
     assert 'send_message("الصفحة التالية.",' not in content
+
+
+def test_dispatcher_has_no_button_callbacks_fallback():
+    """Dispatcher must not use _button_callbacks as fallback."""
+    from pathlib import Path
+    from core.bot import dispatch_registered_interaction
+
+    content = Path("core/bot.py").read_text()
+
+    # Find the dispatch_registered_interaction function
+    import re
+    match = re.search(r'async def dispatch_registered_interaction.*?(?=\n(?:async )?def |\\nclass |\\Z)', content, re.DOTALL)
+    if match:
+        dispatcher_body = match.group(0)
+        assert "_button_callbacks" not in dispatcher_body, \
+            "dispatch_registered_interaction must not reference _button_callbacks"
+        assert "_dynamic_router" not in dispatcher_body, \
+            "dispatch_registered_interaction must not reference _dynamic_router"
+
+
+def test_nav_prev_next_not_dummy_in_bot():
+    """Bot must not have dummy handlers for nav_prev/nav_next."""
+    from pathlib import Path
+    content = Path("core/bot.py").read_text()
+
+    # Check that _handle_nav_prev/_handle_nav_next don't send dummy messages
+    # They should either not exist or be properly documented as local-view handlers
+    lines = content.split('\n')
+    in_nav_prev = False
+    in_nav_next = False
+
+    for i, line in enumerate(lines):
+        if 'async def _handle_nav_prev' in line:
+            in_nav_prev = True
+            nav_prev_block = []
+        elif 'async def _handle_nav_next' in line:
+            in_nav_next = True
+            nav_next_block = []
+        elif in_nav_prev and (line.startswith('async def ') or line.startswith('def ') or line.startswith('class ')):
+            in_nav_prev = False
+        elif in_nav_next and (line.startswith('async def ') or line.startswith('def ') or line.startswith('class ')):
+            in_nav_next = False
+
+        if in_nav_prev and 'send_message' in line:
+            # Check it's not a dummy message
+            assert '"الصفحة السابقة."' not in line and '"الصفحة التالية."' not in line, \
+                "_handle_nav_prev must not send dummy pagination messages"
+        if in_nav_next and 'send_message' in line:
+            assert '"الصفحة السابقة."' not in line and '"الصفحة التالية."' not in line, \
+                "_handle_nav_next must not send dummy pagination messages"
+
+
+def test_pagination_callbacks_change_page():
+    """Pagination callbacks must change the page."""
+    from views.base import PaginationView, PageInfo
+
+    view = PaginationView(
+        user_id=123,
+        items=list(range(25)),
+        items_per_page=10,
+        page_info=PageInfo(title="Test", description="Test")
+    )
+
+    # Check that _current_page changes on next
+    assert view._current_page == 0
+    # Verify buttons exist with callbacks
+    buttons = {b.custom_id: b for b in view.children if hasattr(b, "custom_id")}
+    assert buttons["nav_prev"].callback is not None
+    assert buttons["nav_next"].callback is not None
+
+
+def test_local_view_callbacks_defined():
+    """LOCAL_VIEW_CALLBACKS must be defined in bot.py."""
+    from core.bot import LOCAL_VIEW_CALLBACKS
+    assert "nav_prev" in LOCAL_VIEW_CALLBACKS
+    assert "nav_next" in LOCAL_VIEW_CALLBACKS

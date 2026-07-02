@@ -95,30 +95,39 @@ def resolve_registered_handler(bot, spec):
     
     return None
 
+# Custom IDs that are handled locally by views (PaginationView, etc)
+# These should NOT be dispatched globally - they're handled by the View's own callbacks
+LOCAL_VIEW_CALLBACKS = {"nav_prev", "nav_next"}
+
+
 async def dispatch_registered_interaction(bot, interaction):
-    """Dispatch interaction through registry."""
+    """Dispatch interaction through registry. No fallbacks."""
     custom_id = interaction.data.get("custom_id", "")
     spec = INTERACTION_REGISTRY.get(custom_id)
-    
+
+    # Case 1: Unregistered custom_id
     if spec is None:
-        # Fallback to old system
-        if custom_id in bot._button_callbacks:
-            callback = bot._button_callbacks[custom_id]
-            await callback(interaction)
+        # Check if it's a local view callback (like PaginationView buttons)
+        if custom_id in LOCAL_VIEW_CALLBACKS:
+            # These are handled by the View's own callbacks, not the dispatcher
+            # Return without responding so Discord.py can route to View callback
             return
+        # Log and reject unregistered IDs
+        import logging
+        logging.warning(f"UNREGISTERED_CUSTOM_ID: {custom_id}")
         try:
             await interaction.response.send_message(
-                "تعذر تنفيذ هذا الإجراء. تم تسجيل الخطأ للمراجعة.",
+                "هذا الزر غير مسجل في النظام.",
                 ephemeral=True
             )
         except Exception:
             pass
         return
-    
+
     guard = PermissionGuard(bot)
     user_id = str(interaction.user.id)
     required_level = _registry_permission_to_core(spec)
-    
+
     # Check owner-only
     if spec.owner_only and not await guard.is_owner(user_id):
         try:
@@ -129,7 +138,7 @@ async def dispatch_registered_interaction(bot, interaction):
         except Exception:
             pass
         return
-    
+
     # Check permission
     guild_id = str(interaction.guild_id) if interaction.guild_id else None
     if not await guard.has_permission(user_id, required_level, guild_id=guild_id):
@@ -141,27 +150,29 @@ async def dispatch_registered_interaction(bot, interaction):
         except Exception:
             pass
         return
-    
+
     # Resolve and call handler
     handler = resolve_registered_handler(bot, spec)
     if handler is None:
-        # Fallback to old system
-        if custom_id in bot._button_callbacks:
-            callback = bot._button_callbacks[custom_id]
-            await callback(interaction)
+        # Check if it's a local view callback
+        if custom_id in LOCAL_VIEW_CALLBACKS:
             return
+        # Log and reject missing handlers
+        import logging
+        logging.warning(f"MISSING_HANDLER: {custom_id} (spec.module={spec.module})")
         try:
             await interaction.response.send_message(
-                "تعذر تنفيذ هذا الإجراء. تم تسجيل الخطأ للمراجعة.",
+                "Handler غير موجود لهذا الزر.",
                 ephemeral=True
             )
         except Exception:
             pass
         return
-    
+
     result = handler(bot, interaction) if inspect.isfunction(handler) else handler(interaction)
     if inspect.isawaitable(result):
         await result
+
 
 class WOSMBot(discord.Client):
     """Main WOS-M bot class."""
