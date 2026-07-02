@@ -204,8 +204,7 @@ class EventModal(BaseModal):
                     await db.commit()
 
             await interaction.response.send_message(
-                f"✅ {i18n.get('messages.success')}
-**{name}**",
+                f"✅ {i18n.get('messages.success')}\n**{name}**",
                 ephemeral=True
             )
 
@@ -227,7 +226,6 @@ class EventModal(BaseModal):
         logging.exception("EventModal error")
         if not interaction.response.is_done():
             await interaction.response.send_message("حدث خطأ.", ephemeral=True)
-
 
 
 class NotificationModal(BaseModal):
