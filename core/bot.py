@@ -103,15 +103,15 @@ LOCAL_VIEW_CALLBACKS = {"nav_prev", "nav_next"}
 async def dispatch_registered_interaction(bot, interaction):
     """Dispatch interaction through registry. No fallbacks."""
     custom_id = interaction.data.get("custom_id", "")
+
+    # Skip local view callbacks - these are handled by View's own callbacks
+    if custom_id in LOCAL_VIEW_CALLBACKS:
+        return
+
     spec = INTERACTION_REGISTRY.get(custom_id)
 
     # Case 1: Unregistered custom_id
     if spec is None:
-        # Check if it's a local view callback (like PaginationView buttons)
-        if custom_id in LOCAL_VIEW_CALLBACKS:
-            # These are handled by the View's own callbacks, not the dispatcher
-            # Return without responding so Discord.py can route to View callback
-            return
         # Log and reject unregistered IDs
         import logging
         logging.warning(f"UNREGISTERED_CUSTOM_ID: {custom_id}")
@@ -496,20 +496,6 @@ class WOSMBot(discord.Client):
         from modules.dashboard.views import dashboard_callback
         await dashboard_callback(self, interaction)
 
-    async def _handle_nav_prev(self, interaction: discord.Interaction):
-        """Handle nav_prev - this is handled by PaginationView callbacks."""
-        await interaction.response.send_message(
-            "هذا الزر يعمل فقط في العرض المقسم.",
-            ephemeral=True
-        )
-
-    async def _handle_nav_next(self, interaction: discord.Interaction):
-        """Handle nav_next - this is handled by PaginationView callbacks."""
-        await interaction.response.send_message(
-            "هذا الزر يعمل فقط في العرض المقسم.",
-            ephemeral=True
-        )
-    
     # Module navigation handlers
     async def _handle_alliances(self, interaction: discord.Interaction):
         from modules.alliances.views import alliances_callback

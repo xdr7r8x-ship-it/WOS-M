@@ -265,7 +265,7 @@ def test_every_registry_handler_resolves_to_callable():
     """Registry custom_ids must resolve via bot handlers or module callbacks."""
     import re
     from pathlib import Path
-    from core.bot import resolve_registered_handler, WOSMBot
+    from core.bot import resolve_registered_handler, WOSMBot, LOCAL_VIEW_CALLBACKS
     from core.interaction_registry import INTERACTION_REGISTRY
 
     bot = WOSMBot()
@@ -281,13 +281,17 @@ def test_every_registry_handler_resolves_to_callable():
     missing = []
 
     for custom_id, spec in INTERACTION_REGISTRY.items():
+        # Skip local view callbacks - handled by View's own callbacks
+        if custom_id in LOCAL_VIEW_CALLBACKS:
+            continue
+
         handler = resolve_registered_handler(bot, spec)
-        
+
         # Check if callback exists in modules
         callback_name = f"{custom_id}_callback"
         if callback_name in all_callbacks:
             continue
-        
+
         if handler is None:
             missing.append(custom_id)
 
@@ -399,3 +403,35 @@ def test_local_view_callbacks_defined():
     from core.bot import LOCAL_VIEW_CALLBACKS
     assert "nav_prev" in LOCAL_VIEW_CALLBACKS
     assert "nav_next" in LOCAL_VIEW_CALLBACKS
+
+
+def test_local_view_callbacks_checked_before_registry_lookup():
+    """LOCAL_VIEW_CALLBACKS must be checked BEFORE INTERACTION_REGISTRY.get()."""
+    from pathlib import Path
+
+    content = Path("core/bot.py").read_text()
+
+    # Find dispatcher body
+    body_start = content.index("async def dispatch_registered_interaction")
+    body_end = content.index("class WOSMBot", body_start)
+    body = content[body_start:body_end]
+
+    local_check_pos = body.index("if custom_id in LOCAL_VIEW_CALLBACKS")
+    registry_check_pos = body.index("INTERACTION_REGISTRY.get(custom_id)")
+
+    assert local_check_pos < registry_check_pos, \
+        "LOCAL_VIEW_CALLBACKS check must come BEFORE INTERACTION_REGISTRY.get()"
+
+
+def test_no_global_dummy_nav_prev_next_handlers():
+    """Bot must not have _handle_nav_prev/_handle_nav_next handlers."""
+    from pathlib import Path
+
+    content = Path("core/bot.py").read_text()
+
+    assert "async def _handle_nav_prev" not in content, \
+        "_handle_nav_prev must not exist in bot.py"
+    assert "async def _handle_nav_next" not in content, \
+        "_handle_nav_next must not exist in bot.py"
+    assert "هذا الزر يعمل فقط في العرض المقسم" not in content, \
+        "Dummy message for nav buttons must not exist"
