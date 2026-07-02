@@ -26,7 +26,7 @@ class TestAllianceAddCallback:
         views_file = Path("modules/alliances/views.py")
         content = open(views_file).read()
         
-        assert "discord.ui.Modal" in content, (
+        assert "ui.Modal" in content, (
             "alliance_add_callback must use discord.ui.Modal"
         )
         assert "send_modal" in content, (

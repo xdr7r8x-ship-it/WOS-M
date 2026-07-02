@@ -391,241 +391,335 @@ class AllianceEditModal(ui.Modal):
 async def alliance_delete_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_delete button - Delete an alliance."""
     guard = PermissionGuard(bot)
-    
+
     if not await guard.has_permission(str(interaction.user.id), PermissionLevel.ADMIN):
         await interaction.response.send_message(
             "❌ ليس لديك صلاحية حذف التحالفات.",
             ephemeral=True
         )
         return
-    
-    modal = discord.ui.Modal(title="🗑️ حذف التحالف")
-    
-    alliance_id_input = discord.ui.TextInput(
-        label="ID التحالف",
-        placeholder="1",
-        required=True
-    )
-    
-    confirm_input = discord.ui.TextInput(
-        label="اكتب 'حذف' للتأكيد",
-        placeholder="حذف",
-        required=True
-    )
-    
-    modal.add_item(alliance_id_input)
-    modal.add_item(confirm_input)
-    
+
+    modal = AllianceDeleteModal(bot)
     await interaction.response.send_modal(modal)
-    await modal.wait()
-    
-    alliance_id = alliance_id_input.value.strip()
-    confirm = confirm_input.value.strip()
-    
-    if confirm != "حذف":
-        await interaction.followup.send(
-            "❌ لم يتم تأكيد الحذف.",
-            ephemeral=True
+
+
+class AllianceDeleteModal(ui.Modal):
+    """Modal for deleting an alliance."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="🗑️ حذف التحالف")
+        self.bot = bot
+
+        self.alliance_id_input = ui.TextInput(
+            label="ID التحالف",
+            placeholder="1",
+            required=True
         )
-        return
-    
-    try:
-        alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
-        if not alliance:
-            await interaction.followup.send(
-                f"❌ التحالف `{alliance_id}` غير موجود.",
+
+        self.confirm_input = ui.TextInput(
+            label="اكتب 'حذف' للتأكيد",
+            placeholder="حذف",
+            required=True
+        )
+
+        self.add_item(self.alliance_id_input)
+        self.add_item(self.confirm_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        alliance_id = self.alliance_id_input.value.strip()
+        confirm = self.confirm_input.value.strip()
+
+        if confirm != "حذف":
+            await interaction.response.send_message(
+                "❌ لم يتم تأكيد الحذف.",
                 ephemeral=True
             )
             return
-        
-        await db.execute("DELETE FROM alliances WHERE id = ?", (alliance_id,))
-        await db.commit()
-        
-        embed = discord.Embed(title="✅ تم حذف التحالف", color=0xe74c3c)
-        embed.add_field(name="الاسم", value=alliance["name"], inline=True)
-        
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        
-        await audit_log.log(
-            user_id=str(interaction.user.id),
-            user_name=str(interaction.user),
-            action="delete_alliance",
-            category=AuditCategory.ALLIANCES,
-            details={"alliance_id": alliance_id, "name": alliance["name"]}
-        )
-        
-    except Exception:
-        await interaction.followup.send(
-            "❌ حدث خطأ أثناء حذف التحالف. تم تسجيل التفاصيل.",
-            ephemeral=True
-        )
+
+        try:
+            alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
+            if not alliance:
+                await interaction.response.send_message(
+                    f"❌ التحالف `{alliance_id}` غير موجود.",
+                    ephemeral=True
+                )
+                return
+
+            await db.execute("DELETE FROM alliances WHERE id = ?", (alliance_id,))
+            await db.commit()
+
+            embed = discord.Embed(title="✅ تم حذف التحالف", color=0xe74c3c)
+            embed.add_field(name="الاسم", value=alliance["name"], inline=True)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            await audit_log.log(
+                user_id=str(interaction.user.id),
+                user_name=str(interaction.user),
+                action="delete_alliance",
+                category=AuditCategory.ALLIANCES,
+                details={"alliance_id": alliance_id, "name": alliance["name"]}
+            )
+
+        except Exception:
+            import logging
+            logging.exception("AllianceDeleteModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء حذف التحالف. تم تسجيل التفاصيل.",
+                ephemeral=True
+            )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceDeleteModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("حدث خطأ.", ephemeral=True)
 
 
 async def alliance_sync_settings_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_sync_settings button."""
     guard = PermissionGuard(bot)
-    
+
     if not await guard.has_permission(str(interaction.user.id), PermissionLevel.ADMIN):
         await interaction.response.send_message(
             "❌ ليس لديك صلاحية تعديل الإعدادات.",
             ephemeral=True
         )
         return
-    
-    modal = discord.ui.Modal(title="🔄 مزامنة إعدادات التحالف")
-    
-    alliance_id_input = discord.ui.TextInput(
-        label="ID التحالف",
-        placeholder="1",
-        required=True
-    )
-    
-    discord_role_input = discord.ui.TextInput(
-        label="Discord Role ID",
-        placeholder="اتركه فارغاً لعدم التغيير",
-        required=False
-    )
-    
-    modal.add_item(alliance_id_input)
-    modal.add_item(discord_role_input)
-    
+
+    modal = AllianceSyncModal(bot)
     await interaction.response.send_modal(modal)
-    await modal.wait()
-    
-    alliance_id = alliance_id_input.value.strip()
-    
-    try:
-        alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
-        if not alliance:
-            await interaction.followup.send(
-                f"❌ التحالف `{alliance_id}` غير موجود.",
+
+
+class AllianceSyncModal(ui.Modal):
+    """Modal for syncing alliance settings."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="🔄 مزامنة إعدادات التحالف")
+        self.bot = bot
+
+        self.alliance_id_input = ui.TextInput(
+            label="ID التحالف",
+            placeholder="1",
+            required=True
+        )
+
+        self.discord_role_input = ui.TextInput(
+            label="Discord Role ID",
+            placeholder="اتركه فارغاً لعدم التغيير",
+            required=False
+        )
+
+        self.add_item(self.alliance_id_input)
+        self.add_item(self.discord_role_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        alliance_id = self.alliance_id_input.value.strip()
+
+        try:
+            alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
+            if not alliance:
+                await interaction.response.send_message(
+                    f"❌ التحالف `{alliance_id}` غير موجود.",
+                    ephemeral=True
+                )
+                return
+
+            updates = ["updated_at = CURRENT_TIMESTAMP"]
+            params = []
+
+            if self.discord_role_input.value:
+                updates.append("discord_role_id = ?")
+                params.append(self.discord_role_input.value.strip())
+
+            params.append(alliance_id)
+
+            await db.execute(
+                f"UPDATE alliances SET {', '.join(updates)} WHERE id = ?",
+                tuple(params)
+            )
+            await db.commit()
+
+            embed = discord.Embed(title="✅ تم مزامنة الإعدادات", color=0x2ecc71)
+            embed.add_field(name="التحالف", value=alliance["name"], inline=True)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        except Exception:
+            import logging
+            logging.exception("AllianceSyncModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء المزامنة. تم تسجيل التفاصيل.",
                 ephemeral=True
             )
-            return
-        
-        updates = ["updated_at = CURRENT_TIMESTAMP"]
-        params = []
-        
-        if discord_role_input.value:
-            updates.append("discord_role_id = ?")
-            params.append(discord_role_input.value.strip())
-        
-        params.append(alliance_id)
-        
-        await db.execute(
-            f"UPDATE alliances SET {', '.join(updates)} WHERE id = ?",
-            tuple(params)
-        )
-        await db.commit()
-        
-        embed = discord.Embed(title="✅ تم مزامنة الإعدادات", color=0x2ecc71)
-        embed.add_field(name="التحالف", value=alliance["name"], inline=True)
-        
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        
-    except Exception:
-        await interaction.followup.send(
-            "❌ حدث خطأ أثناء المزامنة. تم تسجيل التفاصيل.",
-            ephemeral=True
-        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceSyncModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("حدث خطأ.", ephemeral=True)
 
 
 async def alliance_gift_settings_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_gift_settings button."""
     guard = PermissionGuard(bot)
-    
+
     if not await guard.has_permission(str(interaction.user.id), PermissionLevel.ADMIN):
         await interaction.response.send_message(
             "❌ ليس لديك صلاحية تعديل إعدادات الهدايا.",
             ephemeral=True
         )
         return
-    
-    modal = discord.ui.Modal(title="🎁 إعدادات استرداد الهدايا")
-    
-    alliance_id_input = discord.ui.TextInput(
-        label="ID التحالف",
-        placeholder="1",
-        required=True
-    )
-    
-    auto_redeem_input = discord.ui.TextInput(
-        label="الاسترداد التلقائي",
-        placeholder="اكتب 'تفعيل' أو 'إلغاء'",
-        required=True
-    )
-    
-    modal.add_item(alliance_id_input)
-    modal.add_item(auto_redeem_input)
-    
+
+    modal = AllianceGiftSettingsModal(bot)
     await interaction.response.send_modal(modal)
-    await modal.wait()
-    
-    alliance_id = alliance_id_input.value.strip()
-    action = auto_redeem_input.value.strip()
-    
-    try:
-        alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
-        if not alliance:
-            await interaction.followup.send(
-                f"❌ التحالف `{alliance_id}` غير موجود.",
+
+
+class AllianceGiftSettingsModal(ui.Modal):
+    """Modal for alliance gift settings."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="🎁 إعدادات استرداد الهدايا")
+        self.bot = bot
+
+        self.alliance_id_input = ui.TextInput(
+            label="ID التحالف",
+            placeholder="1",
+            required=True
+        )
+
+        self.auto_redeem_input = ui.TextInput(
+            label="الاسترداد التلقائي",
+            placeholder="اكتب 'تفعيل' أو 'إلغاء'",
+            required=True
+        )
+
+        self.add_item(self.alliance_id_input)
+        self.add_item(self.auto_redeem_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        alliance_id = self.alliance_id_input.value.strip()
+        action = self.auto_redeem_input.value.strip()
+
+        try:
+            alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
+            if not alliance:
+                await interaction.response.send_message(
+                    f"❌ التحالف `{alliance_id}` غير موجود.",
+                    ephemeral=True
+                )
+                return
+
+            enabled = 1 if action == "تفعيل" else 0
+
+            await db.execute(
+                "UPDATE alliances SET auto_gift_enabled = ? WHERE id = ?",
+                (enabled, alliance_id)
+            )
+            await db.commit()
+
+            status = "✅ مفعّل" if enabled else "❌ معطّل"
+
+            embed = discord.Embed(
+                title=f"🎁 {status}",
+                description=f"**التحالف:** {alliance['name']}",
+                color=0x2ecc71 if enabled else 0xe74c3c
+            )
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            await audit_log.log(
+                user_id=str(interaction.user.id),
+                user_name=str(interaction.user),
+                action="update_gift_settings",
+                category=AuditCategory.GIFT_CODES,
+                details={"alliance_id": alliance_id, "auto_gift_enabled": enabled}
+            )
+
+        except Exception:
+            import logging
+            logging.exception("AllianceGiftSettingsModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء تحديث الإعدادات. تم تسجيل التفاصيل.",
                 ephemeral=True
             )
-            return
-        
-        enabled = 1 if action == "تفعيل" else 0
-        
-        await db.execute(
-            "UPDATE alliances SET auto_gift_enabled = ? WHERE id = ?",
-            (enabled, alliance_id)
-        )
-        await db.commit()
-        
-        status = "✅ مفعّل" if enabled else "❌ معطّل"
-        
-        embed = discord.Embed(
-            title=f"🎁 {status}",
-            description=f"**التحالف:** {alliance['name']}",
-            color=0x2ecc71 if enabled else 0xe74c3c
-        )
-        
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        
-        await audit_log.log(
-            user_id=str(interaction.user.id),
-            user_name=str(interaction.user),
-            action="update_gift_settings",
-            category=AuditCategory.GIFT_CODES,
-            details={"alliance_id": alliance_id, "auto_gift_enabled": enabled}
-        )
-        
-    except Exception:
-        await interaction.followup.send(
-            "❌ حدث خطأ أثناء تحديث الإعدادات. تم تسجيل التفاصيل.",
-            ephemeral=True
-        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceGiftSettingsModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("حدث خطأ.", ephemeral=True)
 
 
 async def alliance_redeem_modal_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_redeem_modal button."""
-    modal = discord.ui.Modal(title="🎁 استرداد هدايا للتحالف")
-    
-    alliance_id_input = discord.ui.TextInput(
-        label="ID التحالف",
-        placeholder="1",
-        required=True
-    )
-    
-    code_input = discord.ui.TextInput(
-        label="كود الهدية",
-        placeholder="WOSM123456",
-        required=True
-    )
-    
-    modal.add_item(alliance_id_input)
-    modal.add_item(code_input)
-    
+    modal = AllianceRedeemModal(bot)
     await interaction.response.send_modal(modal)
+
+
+class AllianceRedeemModal(ui.Modal):
+    """Modal for redeeming gift codes for alliance."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="🎁 استرداد هدايا للتحالف")
+        self.bot = bot
+
+        self.alliance_id_input = ui.TextInput(
+            label="ID التحالف",
+            placeholder="1",
+            required=True
+        )
+
+        self.code_input = ui.TextInput(
+            label="كود الهدية",
+            placeholder="WOSM123456",
+            required=True
+        )
+
+        self.add_item(self.alliance_id_input)
+        self.add_item(self.code_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        alliance_id = self.alliance_id_input.value.strip()
+        code = self.code_input.value.strip()
+
+        try:
+            alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
+            if not alliance:
+                await interaction.response.send_message(
+                    f"❌ التحالف `{alliance_id}` غير موجود.",
+                    ephemeral=True
+                )
+                return
+
+            # Call redemption logic
+            from modules.gift_codes.logic import redeem_gift_code
+            success, msg = await redeem_gift_code(code, alliance_id)
+            
+            if success:
+                await interaction.response.send_message(
+                    f"✅ تم استرداد الكود `{code}` بنجاح!",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"❌ فشل استرداد الكود: {msg}",
+                    ephemeral=True
+                )
+
+        except Exception:
+            import logging
+            logging.exception("AllianceRedeemModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء استرداد الكود. تم تسجيل التفاصيل.",
+                ephemeral=True
+            )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceRedeemModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("حدث خطأ.", ephemeral=True)
 
 
 async def alliance_select_callback(bot: WOSMBot, interaction: discord.Interaction):

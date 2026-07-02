@@ -176,6 +176,59 @@ class EventModal(BaseModal):
         self.add_item(self.time_input)
         self.add_item(self.location_input)
 
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle event submission."""
+        from core.database import db
+        from core.audit_log import audit_log, AuditCategory
+
+        name = self.name_input.value.strip()
+        date = self.date_input.value.strip()
+        time = self.time_input.value.strip()
+        location = self.location_input.value.strip()
+
+        try:
+            if self.mode == "add":
+                cursor = await db.execute(
+                    """ INSERT INTO events (name, event_date, event_time, location, created_by)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (name, date, time, location, str(interaction.user.id))
+                )
+                await db.commit()
+            else:
+                event_id = self.event_data.get("id") if self.event_data else None
+                if event_id:
+                    await db.execute(
+                        """UPDATE events SET name = ?, event_date = ?, event_time = ?, location = ? WHERE id = ?""",
+                        (name, date, time, location, event_id)
+                    )
+                    await db.commit()
+
+            await interaction.response.send_message(
+                f"✅ {i18n.get('messages.success')}
+**{name}**",
+                ephemeral=True
+            )
+
+            await audit_log.log(
+                user_id=str(interaction.user.id),
+                user_name=str(interaction.user),
+                action="create_event" if self.mode == "add" else "edit_event",
+                category=AuditCategory.EVENTS,
+                details={"name": name, "date": date}
+            )
+
+        except Exception:
+            import logging
+            logging.exception("EventModal failed")
+            await interaction.response.send_message(f"❌ {i18n.get('messages.error')}", ephemeral=True)
+
+    async def on_error(self, interaction, error):
+        import logging
+        logging.exception("EventModal error")
+        if not interaction.response.is_done():
+            await interaction.response.send_message("حدث خطأ.", ephemeral=True)
+
+
 
 class NotificationModal(BaseModal):
     """Modal for notification operations."""

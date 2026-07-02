@@ -87,43 +87,14 @@ async def events_callback(bot: WOSMBot, interaction: discord.Interaction):
         category=AuditCategory.EVENTS
     )
 
-async def create_event_callback(bot: WOSMBot, interaction: discord.Interaction):
+async def event_create_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for creating event."""
     modal = EventModal(mode="add")
     await interaction.response.send_modal(modal)
     
-    await modal.wait()
-    
-    name = modal.name_input.value.strip()
-    date = modal.date_input.value.strip()
-    time = modal.time_input.value.strip()
-    location = modal.location_input.value.strip()
-    
-    try:
-        cursor = await db.execute(
-            """INSERT INTO events (name, event_date, event_time, location, created_by) 
-               VALUES (?, ?, ?, ?, ?)""",
-            (name, date, time, location, str(interaction.user.id))
-        )
-        await db.commit()
-        
-        await interaction.followup.send(
-            f"✅ {i18n.get('messages.success')}\n**{name}**",
-            ephemeral=True
-        )
-        
-        await audit_log.log(
-            user_id=str(interaction.user.id),
-            user_name=str(interaction.user),
-            action="create_event",
-            category=AuditCategory.EVENTS,
-            details={"name": name, "date": date}
-        )
-        
-    except Exception as e:
-        await interaction.followup.send(f"❌ {i18n.get('messages.error')}: {str(e)}", ephemeral=True)
+    # Modal submit handled by EventModal.on_submit
 
-async def list_events_callback(bot: WOSMBot, interaction: discord.Interaction):
+async def event_list_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Callback for listing events."""
     rows = await db.fetchall("SELECT * FROM events ORDER BY event_date DESC LIMIT 50")
     
