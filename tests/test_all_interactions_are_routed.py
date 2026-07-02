@@ -435,3 +435,35 @@ def test_no_global_dummy_nav_prev_next_handlers():
         "_handle_nav_next must not exist in bot.py"
     assert "هذا الزر يعمل فقط في العرض المقسم" not in content, \
         "Dummy message for nav buttons must not exist"
+
+
+def test_no_modal_wait_pattern():
+    """Ensure no modal.wait() patterns exist - they break Discord interactions."""
+    from pathlib import Path
+    import re
+
+    offenders = []
+    for path in list(Path("modules").rglob("*.py")) + list(Path("views").rglob("*.py")):
+        content = path.read_text()
+        if "modal.wait()" in content or "await modal.wait()" in content:
+            # Extract line numbers
+            for i, line in enumerate(content.splitlines(), 1):
+                if "modal.wait()" in line or "await modal.wait()" in line:
+                    offenders.append(f"{path}:{i}")
+
+    assert not offenders, f"Remove modal.wait() patterns from: {offenders}"
+
+
+def test_no_raw_discord_modal_in_callbacks():
+    """Use Modal subclasses with on_submit instead of discord.ui.Modal() in callbacks."""
+    from pathlib import Path
+    import ast
+
+    offenders = []
+    for path in Path("modules").rglob("views.py"):
+        content = path.read_text()
+        # Check for discord.ui.Modal( pattern (inline modal creation)
+        if re.search(r'discord\.ui\.Modal\s*\(', content):
+            offenders.append(str(path))
+
+    assert not offenders, f"Use Modal subclasses with on_submit instead: {offenders}"

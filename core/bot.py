@@ -102,6 +102,11 @@ LOCAL_VIEW_CALLBACKS = {"nav_prev", "nav_next"}
 
 async def dispatch_registered_interaction(bot, interaction):
     """Dispatch interaction through registry. No fallbacks."""
+    # Idempotency check - prevent double execution
+    if getattr(interaction, "_wosm_dispatched", False):
+        return
+    setattr(interaction, "_wosm_dispatched", True)
+
     custom_id = interaction.data.get("custom_id", "")
 
     # Skip local view callbacks - these are handled by View's own callbacks

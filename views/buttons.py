@@ -10,9 +10,27 @@ from core.i18n import i18n
 from core.permissions import PermissionLevel
 
 
-class DashboardButton(ui.Button):
+def get_bot_from_view_or_interaction(interaction: discord.Interaction):
+    """Get bot instance from view or interaction."""
+    view = interaction.message.components[0].parent if interaction.message and interaction.message.components else None
+    if view and hasattr(view, 'bot'):
+        return view.bot
+    return interaction.client
+
+
+class RoutedButton(ui.Button):
+    """Base button that routes to dispatcher for all custom_id buttons."""
+
+    async def callback(self, interaction: discord.Interaction):
+        """Route all button clicks through the dispatcher."""
+        from core.bot import dispatch_registered_interaction
+        bot = interaction.client
+        await dispatch_registered_interaction(bot, interaction)
+
+
+class DashboardButton(RoutedButton):
     """Button for dashboard navigation."""
-    
+
     def __init__(
         self,
         label: str,
@@ -30,9 +48,9 @@ class DashboardButton(ui.Button):
         )
 
 
-class ActionButton(ui.Button):
+class ActionButton(RoutedButton):
     """Generic action button."""
-    
+
     def __init__(
         self,
         label: str,
@@ -50,15 +68,18 @@ class ActionButton(ui.Button):
             row=row
         )
         self.callback_func = callback_func
-    
+
     async def callback(self, interaction: discord.Interaction):
+        """Route to dispatcher, with optional callback_func as override."""
         if self.callback_func:
             await self.callback_func(interaction)
+        else:
+            await super().callback(interaction)
 
 
-class ToggleButton(ui.Button):
+class ToggleButton(RoutedButton):
     """Toggle button for enable/disable actions."""
-    
+
     def __init__(
         self,
         label: str,
@@ -75,14 +96,11 @@ class ToggleButton(ui.Button):
             row=row
         )
         self.is_enabled = is_enabled
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
 
 
-class IconButton(ui.Button):
+class IconButton(RoutedButton):
     """Icon-only button."""
-    
+
     def __init__(
         self,
         emoji: str,
@@ -92,22 +110,19 @@ class IconButton(ui.Button):
         tooltip: Optional[str] = None
     ):
         super().__init__(
-            label="\u200b",  # Zero-width space
+            label="\u200b",
             custom_id=custom_id,
             style=style,
             emoji=emoji,
             row=row
         )
         if tooltip:
-            self.button_type._underlying.set_tooltip(tooltip)  # type: ignore
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+            self.button_type._underlying.set_tooltip(tooltip)
 
 
-class BackButton(ui.Button):
+class BackButton(RoutedButton):
     """Back navigation button."""
-    
+
     def __init__(self, row: int = 4):
         super().__init__(
             label=i18n.get("buttons.back"),
@@ -116,14 +131,11 @@ class BackButton(ui.Button):
             emoji="🔙",
             row=row
         )
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
 
 
-class HomeButton(ui.Button):
+class HomeButton(RoutedButton):
     """Home navigation button."""
-    
+
     def __init__(self, row: int = 4):
         super().__init__(
             label=i18n.get("buttons.home"),
@@ -132,14 +144,11 @@ class HomeButton(ui.Button):
             emoji="🏠",
             row=row
         )
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
 
 
-class CloseButton(ui.Button):
+class CloseButton(RoutedButton):
     """Close button."""
-    
+
     def __init__(self, row: int = 4):
         super().__init__(
             label=i18n.get("buttons.close"),
@@ -148,28 +157,33 @@ class CloseButton(ui.Button):
             emoji="✖️",
             row=row
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
-        await interaction.message.delete()
-        await interaction.response.defer()
+        """Close button: delete message then route to dispatcher."""
+        if interaction.message:
+            try:
+                await interaction.message.delete()
+            except discord.NotFound:
+                pass
+        await super().callback(interaction)
 
 
 class NavigationButtonGroup(ui.View):
     """Navigation button group with back and home buttons."""
-    
+
     def __init__(self, show_close: bool = False, row: int = 4):
         super().__init__(timeout=300)
-        
+
         self.add_item(BackButton(row=row))
         self.add_item(HomeButton(row=row))
-        
+
         if show_close:
             self.add_item(CloseButton(row=row))
 
 
-class SelectOptionButton(ui.Button):
+class SelectOptionButton(RoutedButton):
     """Button for select menu options."""
-    
+
     def __init__(
         self,
         label: str,
@@ -187,55 +201,11 @@ class SelectOptionButton(ui.Button):
             row=row
         )
         self.value = value
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
 
 
-class PaginationButton(ui.Button):
-    """Pagination button."""
-    
-    def __init__(
-        self,
-        direction: str,  # "prev" or "next"
-        emoji: str,
-        disabled: bool = False,
-        row: int = 4
-    ):
-        label = i18n.get("buttons.previous") if direction == "prev" else i18n.get("buttons.next")
-        
-        super().__init__(
-            label=label,
-            custom_id=f"page_{direction}",
-            style=discord.ButtonStyle.secondary,
-            emoji=emoji,
-            row=row,
-            disabled=disabled
-        )
-        self.direction = direction
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
-
-class PageIndicator(ui.Button):
-    """Page number indicator (disabled button)."""
-    
-    def __init__(self, current: int, total: int, row: int = 4):
-        label = f"{i18n.get('messages.page')} {current} {i18n.get('messages.of')} {total}"
-        
-        super().__init__(
-            label=label,
-            custom_id="page_indicator",
-            style=discord.ButtonStyle.primary,
-            row=row,
-            disabled=True
-        )
-
-
-class ActionRowButton(ui.Button):
+class ActionRowButton(RoutedButton):
     """Action row button for inline actions."""
-    
+
     def __init__(
         self,
         label: str,
@@ -251,6 +221,3 @@ class ActionRowButton(ui.Button):
             emoji=emoji,
             row=row
         )
-    
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()

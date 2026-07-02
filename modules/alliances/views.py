@@ -136,88 +136,106 @@ async def alliances_callback(bot: WOSMBot, interaction: discord.Interaction):
 async def alliance_add_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_add button - Add a new alliance."""
     guard = PermissionGuard(bot)
-    
+
     if not await guard.has_permission(str(interaction.user.id), PermissionLevel.ADMIN):
         await interaction.response.send_message(
             "❌ ليس لديك صلاحية إضافة تحالفات.",
             ephemeral=True
         )
         return
-    
-    modal = discord.ui.Modal(title="➕ إضافة تحالف جديد")
-    
-    name_input = discord.ui.TextInput(
-        label="اسم التحالف",
-        placeholder="اسم التحالف",
-        required=True,
-        min_length=1,
-        max_length=100
-    )
-    
-    state_kid_input = discord.ui.TextInput(
-        label="State KID / Alliance ID",
-        placeholder="12345678",
-        required=True,
-        min_length=1,
-        max_length=50
-    )
-    
-    discord_role_input = discord.ui.TextInput(
-        label="Discord Role ID (اختياري)",
-        placeholder="اتركه فارغاً",
-        required=False
-    )
-    
-    modal.add_item(name_input)
-    modal.add_item(state_kid_input)
-    modal.add_item(discord_role_input)
-    
+
+    modal = AllianceAddModal(bot)
     await interaction.response.send_modal(modal)
-    await modal.wait()
-    
-    name = name_input.value.strip()
-    state_kid = state_kid_input.value.strip()
-    discord_role = discord_role_input.value.strip() if discord_role_input.value else None
-    
-    try:
-        existing = await db.fetchone(
-            "SELECT id FROM alliances WHERE name = ? OR state_kid = ?",
-            (name, state_kid)
+
+
+class AllianceAddModal(ui.Modal):
+    """Modal for adding a new alliance."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="➕ إضافة تحالف جديد")
+        self.bot = bot
+
+        self.name_input = ui.TextInput(
+            label="اسم التحالف",
+            placeholder="اسم التحالف",
+            required=True,
+            min_length=1,
+            max_length=100
         )
-        if existing:
-            await interaction.followup.send(
-                "❌ التحالف موجود بالفعل.",
+
+        self.state_kid_input = ui.TextInput(
+            label="State KID / Alliance ID",
+            placeholder="12345678",
+            required=True,
+            min_length=1,
+            max_length=50
+        )
+
+        self.discord_role_input = ui.TextInput(
+            label="Discord Role ID (اختياري)",
+            placeholder="اتركه فارغاً",
+            required=False
+        )
+
+        self.add_item(self.name_input)
+        self.add_item(self.state_kid_input)
+        self.add_item(self.discord_role_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        name = self.name_input.value.strip()
+        state_kid = self.state_kid_input.value.strip()
+        discord_role = self.discord_role_input.value.strip() if self.discord_role_input.value else None
+
+        try:
+            existing = await db.fetchone(
+                "SELECT id FROM alliances WHERE name = ? OR state_kid = ?",
+                (name, state_kid)
+            )
+            if existing:
+                await interaction.response.send_message(
+                    "❌ التحالف موجود بالفعل.",
+                    ephemeral=True
+                )
+                return
+
+            cursor = await db.execute(
+                """INSERT INTO alliances (name, state_kid, discord_role_id, is_active)
+                   VALUES (?, ?, ?, 1)""",
+                (name, state_kid, discord_role)
+            )
+            await db.commit()
+            alliance_id = cursor.lastrowid
+
+            embed = discord.Embed(title="✅ تم إضافة التحالف", color=0x2ecc71)
+            embed.add_field(name="الاسم", value=name, inline=True)
+            embed.add_field(name="State KID", value=state_kid, inline=True)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            await audit_log.log(
+                user_id=str(interaction.user.id),
+                user_name=str(interaction.user),
+                action="add_alliance",
+                category=AuditCategory.ALLIANCES,
+                details={"name": name, "state_kid": state_kid, "alliance_id": alliance_id}
+            )
+
+        except Exception:
+            import logging
+            logging.exception("AllianceAddModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء إضافة التحالف. تم تسجيل التفاصيل.",
                 ephemeral=True
             )
-            return
-        
-        cursor = await db.execute(
-            """INSERT INTO alliances (name, state_kid, discord_role_id, is_active) 
-               VALUES (?, ?, ?, 1)""",
-            (name, state_kid, discord_role)
-        )
-        await db.commit()
-        alliance_id = cursor.lastrowid
-        
-        embed = discord.Embed(title="✅ تم إضافة التحالف", color=0x2ecc71)
-        embed.add_field(name="الاسم", value=name, inline=True)
-        embed.add_field(name="State KID", value=state_kid, inline=True)
-        
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        
-        await audit_log.log(
-            user_id=str(interaction.user.id),
-            user_name=str(interaction.user),
-            action="add_alliance",
-            category=AuditCategory.ALLIANCES,
-            details={"name": name, "state_kid": state_kid, "alliance_id": alliance_id}
-        )
-        
-    except Exception:
-        await interaction.followup.send(
-            "❌ حدث خطأ أثناء إضافة التحالف. تم تسجيل التفاصيل.",
-            ephemeral=True
-        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceAddModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "حدث خطأ أثناء حفظ التحالف.",
+                ephemeral=True
+            )
 
 
 async def alliance_list_callback(bot: WOSMBot, interaction: discord.Interaction):
@@ -259,97 +277,115 @@ async def alliance_list_callback(bot: WOSMBot, interaction: discord.Interaction)
 async def alliance_edit_callback(bot: WOSMBot, interaction: discord.Interaction):
     """Handle alliance_edit button - Edit an alliance."""
     guard = PermissionGuard(bot)
-    
+
     if not await guard.has_permission(str(interaction.user.id), PermissionLevel.ADMIN):
         await interaction.response.send_message(
             "❌ ليس لديك صلاحية تعديل التحالفات.",
             ephemeral=True
         )
         return
-    
-    modal = discord.ui.Modal(title="✏️ تعديل التحالف")
-    
-    alliance_id_input = discord.ui.TextInput(
-        label="ID التحالف",
-        placeholder="1",
-        required=True
-    )
-    
-    name_input = discord.ui.TextInput(
-        label="اسم التحالف الجديد",
-        placeholder="اتركه فارغاً لعدم التغيير",
-        required=False
-    )
-    
-    state_kid_input = discord.ui.TextInput(
-        label="State KID الجديد",
-        placeholder="اتركه فارغاً لعدم التغيير",
-        required=False
-    )
-    
-    modal.add_item(alliance_id_input)
-    modal.add_item(name_input)
-    modal.add_item(state_kid_input)
-    
+
+    modal = AllianceEditModal(bot)
     await interaction.response.send_modal(modal)
-    await modal.wait()
-    
-    alliance_id = alliance_id_input.value.strip()
-    
-    try:
-        alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
-        if not alliance:
-            await interaction.followup.send(
-                f"❌ التحالف `{alliance_id}` غير موجود.",
+
+
+class AllianceEditModal(ui.Modal):
+    """Modal for editing an alliance."""
+
+    def __init__(self, bot: WOSMBot):
+        super().__init__(title="✏️ تعديل التحالف")
+        self.bot = bot
+
+        self.alliance_id_input = ui.TextInput(
+            label="ID التحالف",
+            placeholder="1",
+            required=True
+        )
+
+        self.name_input = ui.TextInput(
+            label="اسم التحالف الجديد",
+            placeholder="اتركه فارغاً لعدم التغيير",
+            required=False
+        )
+
+        self.state_kid_input = ui.TextInput(
+            label="State KID الجديد",
+            placeholder="اتركه فارغاً لعدم التغيير",
+            required=False
+        )
+
+        self.add_item(self.alliance_id_input)
+        self.add_item(self.name_input)
+        self.add_item(self.state_kid_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        alliance_id = self.alliance_id_input.value.strip()
+
+        try:
+            alliance = await db.fetchone("SELECT * FROM alliances WHERE id = ?", (alliance_id,))
+            if not alliance:
+                await interaction.response.send_message(
+                    f"❌ التحالف `{alliance_id}` غير موجود.",
+                    ephemeral=True
+                )
+                return
+
+            updates = []
+            params = []
+
+            if self.name_input.value:
+                updates.append("name = ?")
+                params.append(self.name_input.value.strip())
+
+            if self.state_kid_input.value:
+                updates.append("state_kid = ?")
+                params.append(self.state_kid_input.value.strip())
+
+            if not updates:
+                await interaction.response.send_message(
+                    "❌ لم يتم إدخال أي بيانات للتعديل.",
+                    ephemeral=True
+                )
+                return
+
+            params.append(alliance_id)
+
+            await db.execute(
+                f"UPDATE alliances SET {', '.join(updates)} WHERE id = ?",
+                tuple(params)
+            )
+            await db.commit()
+
+            embed = discord.Embed(title="✅ تم تعديل التحالف", color=0x2ecc71)
+            embed.add_field(name="ID", value=alliance_id, inline=True)
+            embed.add_field(name="الاسم الجديد", value=self.name_input.value or alliance["name"], inline=True)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            await audit_log.log(
+                user_id=str(interaction.user.id),
+                user_name=str(interaction.user),
+                action="edit_alliance",
+                category=AuditCategory.ALLIANCES,
+                details={"alliance_id": alliance_id}
+            )
+
+        except Exception:
+            import logging
+            logging.exception("AllianceEditModal failed")
+            await interaction.response.send_message(
+                "❌ حدث خطأ أثناء تعديل التحالف. تم تسجيل التفاصيل.",
                 ephemeral=True
             )
-            return
-        
-        updates = []
-        params = []
-        
-        if name_input.value:
-            updates.append("name = ?")
-            params.append(name_input.value.strip())
-        
-        if state_kid_input.value:
-            updates.append("state_kid = ?")
-            params.append(state_kid_input.value.strip())
-        
-        if not updates:
-            await interaction.followup.send(
-                "❌ لم يتم إدخال أي بيانات للتعديل.",
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        import logging
+        logging.exception("AllianceEditModal error", exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "حدث خطأ أثناء تعديل التحالف.",
                 ephemeral=True
             )
-            return
-        
-        params.append(alliance_id)
-        
-        await db.execute(
-            f"UPDATE alliances SET {', '.join(updates)} WHERE id = ?",
-            tuple(params)
-        )
-        await db.commit()
-        
-        embed = discord.Embed(title="✅ تم تعديل التحالف", color=0x2ecc71)
-        embed.add_field(name="ID", value=alliance_id, inline=True)
-        embed.add_field(name="الاسم الجديد", value=name_input.value or alliance["name"], inline=True)
-        
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        
-        await audit_log.log(
-            user_id=str(interaction.user.id),
-            user_name=str(interaction.user),
-            action="edit_alliance",
-            category=AuditCategory.ALLIANCES,
-            details={"alliance_id": alliance_id}
-        )
-        
-    except Exception:
-        await interaction.followup.send(
-            "❌ حدث خطأ أثناء تعديل التحالف. تم تسجيل التفاصيل.",
-            ephemeral=True
-        )
 
 
 async def alliance_delete_callback(bot: WOSMBot, interaction: discord.Interaction):
